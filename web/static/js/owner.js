@@ -54,9 +54,15 @@
 
   // ------------------------------------------------------------ dashboard
   if (section === "dashboard") {
+    const hr = new Date().getHours();
+    const g = $("greet");
+    if (g) g.textContent = (hr < 12 ? "Good morning, " : hr < 18 ? "Good afternoon, " : "Good evening, ") + g.textContent.replace("Welcome back, ", "");
+    if ($("greet-date")) $("greet-date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     let days = 30;
     const load = () => guard(AF.api("/api/owner/metrics?days=" + days).then((m) => {
-      const card = (label, val, sub) => '<div class="card metric"><div class="mlabel">' + label + '</div><div class="mval">' + val + '</div><div class="msub">' + (sub || "&nbsp;") + "</div></div>";
+      const ICONS = ["i-file", "i-upload", "i-check", "i-layers"];
+      let k = 0;
+      const card = (label, val, sub) => '<div class="card metric"><span class="m-ic">' + AF.icon(ICONS[k++]) + '</span><div class="mlabel">' + label + '</div><div class="mval">' + val + '</div><div class="msub">' + (sub || "&nbsp;") + "</div></div>";
       $("metrics").innerHTML =
         card("Retained uploads", m.retained_uploads, m.expiring_within_3_days + " expire within 3 days") +
         card("New uploads", m.new_uploads, "last " + m.days + " days") +
@@ -71,7 +77,7 @@
       $("chart-table").innerHTML = '<table class="data"><thead><tr><th>Day</th><th class="num">Uploads</th></tr></thead><tbody>' +
         m.uploads_per_day.map((n, i) => n ? "<tr><td>" + AF.dateOnly(start + i * 86400 + 43200) + '</td><td class="num">' + n + "</td></tr>" : "").join("") + "</tbody></table>";
       const states = Object.entries(m.jobs_by_state);
-      $("status-list").innerHTML = states.length ? states.map(([s, n]) => "<li>" + statePill(s) + '<span class="mono">' + AF.esc(s) + '</span><b class="tnum">' + n + "</b></li>").join("") : '<li class="muted">No jobs in this period.</li>';
+      $("status-list").innerHTML = states.length ? states.map(([s, n]) => "<li>" + statePill(s) + '<span class="muted small grow" style="padding-left:8px">' + AF.esc(s.replace(/_/g, " ")) + '</span><b class="tnum">' + n + "</b></li>").join("") : '<li class="muted">No jobs in this period.</li>';
       const att = [];
       if (m.stuck_jobs.length) att.push('<div class="notice warn">' + AF.icon("i-alert") + "<span>" + m.stuck_jobs.length + ' job(s) have not progressed for 15+ minutes. <a href="/owner/jobs">Review jobs</a></span></div>');
       if (m.preview_failures) att.push('<div class="notice warn">' + AF.icon("i-alert") + "<span>" + m.preview_failures + " preview render failure(s).</span></div>");

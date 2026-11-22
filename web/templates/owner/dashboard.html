@@ -1,6 +1,6 @@
 {% extends "owner/base_owner.html" %}
 {% block content %}
-<div class="row between" style="margin-bottom:18px"><p class="muted" style="margin:0">Real figures from the database. Period:</p>
+<div class="owner-greet"><div><p class="xs muted" style="margin:0 0 4px" id="greet-date"></p><h2 id="greet">Welcome back, {{ owner.display_name }}</h2></div>
   <div class="seg" role="group" aria-label="Period"><button type="button" data-days="7" aria-pressed="false">7 days</button><button type="button" data-days="30" aria-pressed="true">30 days</button><button type="button" data-days="90" aria-pressed="false">90 days</button></div></div>
 <div class="metrics" id="metrics"><div class="card metric skel" style="height:96px"></div><div class="card metric skel" style="height:96px"></div><div class="card metric skel" style="height:96px"></div><div class="card metric skel" style="height:96px"></div></div>
 <div class="grid-2" style="margin-top:20px;grid-template-columns:1.6fr 1fr">

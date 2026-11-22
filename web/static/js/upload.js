@@ -152,7 +152,7 @@
   if (list) {
     const LABEL = { review_ready: ["Ready for review", "pill-success"], failed: ["Failed", "pill-error"] };
     const load = () => AF.api("/api/uploads").then((d) => {
-      if (!d.uploads.length) { list.innerHTML = '<p class="small muted" style="margin:0">No documents yet.</p>'; return; }
+      if (!d.uploads.length) { list.innerHTML = '<div class="empty" style="padding:22px 10px">' + AF.icon("i-file") + '<p style="margin:0">No documents yet.<br><span class="xs">Your uploads appear here so you can return to them.</span></p></div>'; return; }
       list.innerHTML = '<ul class="fig-list">' + d.uploads.map((u) => {
         const [lab, cls] = LABEL[u.state] || ["Processing", "pill-accent"];
         return '<li class="fig-card" style="grid-template-columns:36px 1fr auto;cursor:default"><div class="doc-badge" style="width:30px;height:36px">W</div>' +

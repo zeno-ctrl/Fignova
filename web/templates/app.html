@@ -1,29 +1,32 @@
 {% extends "base.html" %}
+{% block header %}{% include "partials/app_header.html" %}{% endblock %}
 {% block main %}
-<section class="container page-hero" style="padding-bottom:8px">
-  <ol class="stepper" aria-label="Progress"><li data-state="active"><i>1</i>Upload</li><li><i>2</i>Analyze</li><li><i>3</i>Review</li><li><i>4</i>Download</li></ol>
-  <h1 style="font-size:clamp(2rem,4vw,2.8rem);margin-top:18px">Workspace</h1>
-  <p>Upload one Word document. You will review every figure and caption before downloading.</p>
-</section>
-<section class="container grid-2" style="align-items:start;gap:28px">
-  {% include "partials/uploader.html" %}
-  <div class="stack">
-    <div class="card card-pad">
-      <h3>Your documents in this browser</h3>
-      <p class="small muted">Only this browser session can open these. They are deleted after {{ retention_days }} days.</p>
-      <div id="my-uploads"><div class="skel" style="height:48px"></div></div>
-    </div>
-    <div class="card card-pad">
-      <h3>What happens next</h3>
-      <ol class="small" style="color:var(--text-2);padding-left:18px;margin:0">
-        <li>We verify the file is a genuine Word document.</li>
-        <li>We render your original to find which images are on page 1 (those are never captioned).</li>
-        <li>Heading 1 / LO sections set the numbers: Figure 1.1, 1.2 … then 2.1 under LO2.</li>
-        <li>AutoFigure AI suggests descriptions; you can edit every one.</li>
-        <li>You preview the actual output and download an editable .docx.</li>
-      </ol>
-    </div>
+<section class="wide app-intro">
+  <div>
+    <h1 class="app-title">Caption a Word document</h1>
+    <p class="muted">Upload a .docx — we number every figure by learning outcome and you review everything before downloading.</p>
   </div>
+  <ol class="mini-steps" aria-label="How it works">
+    <li><span>1</span>Upload</li><li><span>2</span>We analyse</li><li><span>3</span>You review</li><li><span>4</span>Download .docx</li>
+  </ol>
+</section>
+<section class="wide app-grid">
+  {% include "partials/uploader.html" %}
+  <aside class="stack" style="--gap:20px" id="docs">
+    <div class="card card-pad">
+      <div class="row between"><h2 class="h-card">My documents</h2><span class="xs muted">only in this browser</span></div>
+      <div id="my-uploads" style="margin-top:12px"><div class="skel" style="height:56px"></div></div>
+    </div>
+    <div class="card card-pad tips">
+      <h2 class="h-card">Good to know</h2>
+      <ul class="tick-list">
+        <li><svg class="icon"><use href="#i-shield"/></svg><span>Images on your <b>cover page</b> are never captioned.</span></li>
+        <li><svg class="icon"><use href="#i-hash"/></svg><span>Numbers restart at each <b>LO</b>: 1.1, 1.2 … then 2.1.</span></li>
+        <li><svg class="icon"><use href="#i-sparkle"/></svg><span><b>AutoFigure AI</b> writes captions; you can edit every one.</span></li>
+        <li><svg class="icon"><use href="#i-check"/></svg><span>Wrong existing captions are found and fixed with one click.</span></li>
+      </ul>
+    </div>
+  </aside>
 </section>
 {% endblock %}
 {% block scripts %}<script src="/static/js/upload.js?v={{ version }}" defer></script>{% endblock %}

@@ -37,7 +37,7 @@ class Config:
     storage_region: str
     lite: bool = False  # serverless host (Vercel): no LibreOffice, no background worker, no persistent disk
     storage_backend: str = "disk"  # disk | database
-    version: str = "1.1.0"
+    version: str = "1.2.0"
 
     @property
     def dev_mode(self) -> bool:

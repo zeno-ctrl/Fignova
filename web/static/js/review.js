@@ -55,6 +55,7 @@
       }
       renderSidebar();
       renderDownload();
+      fitGrid();
       if (job.failure && job.failure.regeneration_only && !S.warnedRegen) {
         S.warnedRegen = true;
         AF.toast("Your last changes could not be applied: " + job.failure.message + " The previous verified version is still available.", "error", 9000);
@@ -103,6 +104,12 @@
   }
 
   function timeline(job) {
+    const done = job.steps.filter((x) => x.state === "done").length;
+    const pct = Math.round((done / job.steps.length) * 100);
+    $("proc-pct").textContent = pct + "%";
+    $("proc-fill").style.width = Math.max(4, pct) + "%";
+    const cur = job.steps.find((x) => x.state === "active" || x.state === "failed");
+    $("proc-title").textContent = job.state === "failed" ? "Processing stopped" : cur ? cur.label + "…" : "Preparing your document…";
     $("timeline").innerHTML = job.steps.map((s) =>
       '<li data-state="' + s.state + '"><span class="dot">' + (s.state === "done" ? AF.icon("i-check", "icon") : s.state === "failed" ? AF.icon("i-x", "icon") : "") +
       '</span><span>' + AF.esc(s.label) + '</span><span class="xs muted">' + (s.state === "active" ? "in progress" : s.state === "done" ? "done" : s.state === "failed" ? "failed" : "") + "</span></li>").join("");
@@ -147,23 +154,18 @@
     const corrected = c.renumber || 0;
     const review = S.figures.filter((f) => f.needs_review && f.eligible).length;
     const pending = ["excluded_page_uncertain", "excluded_unassigned", "excluded_unsupported"].reduce((a, k) => a + (c[k] || 0), 0);
-    const parts = [
-      ["i-layers", S.figures.length + " images detected", ""],
-      ["i-shield", (c.excluded_first_page || 0) + " excluded on page 1", "pill-violet"],
-      ["i-check", inserted + " captions inserted", "pill-success"],
-      ["i-file", kept + " existing captions retained", ""],
-      ["i-refresh", corrected + " existing captions corrected", corrected ? "pill-accent" : ""],
-      ["i-alert", review + " need review", review ? "pill-warning" : ""],
+    const mistakes = S.figures.filter((f) => (f.mistakes || []).length).length;
+    const tiles = [
+      { n: S.figures.length, label: "Images found", icon: "i-layers", tone: "", filter: "all" },
+      { n: inserted + (c.renumber || 0) + kept, label: "Captioned", icon: "i-check", tone: "ok", filter: "all" },
+      { n: c.excluded_first_page || 0, label: "Cover page (protected)", icon: "i-shield", tone: "violet", filter: "excluded" },
+      { n: review + pending, label: "To review", icon: "i-alert", tone: review + pending ? "warn" : "", filter: "review" },
     ];
-    if (pending) parts.push(["i-info", pending + " waiting for your decision", "pill-warning"]);
-    const nm = S.figures.filter((f) => (f.mistakes || []).length).length;
-    if (nm) parts.push(["i-alert", nm + " mistake(s) in existing captions", "pill-error"]);
-    if (c.excluded_decorative) parts.push(["i-eye", c.excluded_decorative + " decorative skipped", ""]);
-    $("report").innerHTML = parts.map((p) => '<span class="pill ' + p[2] + '">' + AF.icon(p[0]) + AF.esc(p[1]) + "</span>").join("") +
-      (S.job.summary.mode ? '<span class="pill">' + AF.esc({ lo: "Numbering by LO headings", heading1: "Numbering by Heading 1", document: "Whole-document numbering" }[S.job.summary.mode] || "") + "</span>" : "");
-    if (!S.figures.length) {
-      $("report").innerHTML += '<span class="pill pill-warning">' + AF.icon("i-info") + "No images found in this document</span>";
-    }
+    if (mistakes) tiles.push({ n: mistakes, label: "Mistakes found", icon: "i-refresh", tone: "err", filter: "mistakes" });
+    const mode = { lo: "Numbered by LO", heading1: "Numbered by Heading 1", document: "Numbered 1, 2, 3" }[S.job.summary.mode] || "";
+    $("report").innerHTML = tiles.map((t) => '<button type="button" class="stat ' + t.tone + '" data-stat="' + t.filter + '">' +
+      '<span class="stat-ic">' + AF.icon(t.icon) + '</span><span><b class="tnum">' + t.n + "</b><small>" + AF.esc(t.label) + "</small></span></button>").join("") +
+      (mode ? '<span class="stat-mode">' + AF.icon("i-hash") + AF.esc(mode) + "</span>" : "");
     // outline
     const chapters = (S.job.summary.chapters || []);
     const groups = chapters.map((ch) => ({ key: ch.key, title: ch.title, number: ch.number, n: S.figures.filter((f) => f.eligible && f.chapter_number === ch.number).length }));
@@ -192,6 +194,8 @@
     if (c.excluded_page_uncertain) issues.push(c.excluded_page_uncertain + " figure(s) could not be verified as not on page 1. Open them and confirm.");
     if (c.excluded_unsupported) issues.push(c.excluded_unsupported + " figure(s) are in text boxes, SmartArt or drawing canvases and were not edited automatically.");
     if (S.figures.some((f) => (f.warnings || []).includes("floating_image") && f.eligible)) issues.push("Some figures are floating images. Check their caption position in the preview.");
+    $("checks-count").textContent = String(issues.length);
+    $("checks").classList.toggle("has-items", issues.length > 0);
     $("issues").innerHTML = issues.length ? issues.map((t) => '<div class="notice warn" style="margin-bottom:8px">' + AF.icon("i-alert") + "<span>" + AF.esc(t) + "</span></div>").join("")
       : '<div class="notice ok">' + AF.icon("i-check") + "<span>No structural issues detected.</span></div>";
     renderMistakes();
@@ -250,7 +254,8 @@
       const meta = ["Page " + (f.page ?? "?"), f.chapter_title ? AF.esc(shortTitle(f.chapter_title)) : null].filter(Boolean).join(" · ");
       const flags = (f.needs_review && f.eligible ? '<span class="pill pill-warning">' + AF.icon("i-alert") + "Review</span> " : "") +
         '<span class="pill ' + (STATUS_PILL[f.status] || "") + '">' + AF.esc(f.status_label) + "</span>";
-      return '<li><button type="button" class="fig-card' + (f.eligible ? "" : " excluded") + '" data-fig="' + f.figure_id + '" aria-current="' + (f.figure_id === S.selected) + '">' +
+      const tone = (f.mistakes || []).length ? " st-err" : (f.needs_review && f.eligible) || ["excluded_page_uncertain", "excluded_unassigned"].includes(f.status) ? " st-warn" : f.eligible ? " st-ok" : "";
+      return '<li><button type="button" class="fig-card' + tone + (f.eligible ? "" : " excluded") + '" data-fig="' + f.figure_id + '" aria-current="' + (f.figure_id === S.selected) + '">' +
         (f.thumb_url ? '<img class="fthumb" loading="lazy" alt="" src="' + f.thumb_url + '">' : '<span class="fthumb" style="display:grid;place-items:center">' + AF.icon("i-file") + "</span>") +
         '<span style="min-width:0"><span class="row between" style="gap:6px"><span class="flabel">' + AF.esc(figTitle(f)) + '</span></span><span class="fmeta">' + meta + "</span>" +
         (f.eligible ? '<span class="fcap">' + AF.esc(f.caption_text || "—") + "</span>" : '<span class="fcap muted">' + AF.esc(f.reason) + "</span>") +
@@ -692,6 +697,14 @@
     const fl = t.closest("[data-filter]"); if (fl) { S.filter = fl.dataset.filter; document.querySelectorAll("[data-filter]").forEach((b) => b.setAttribute("aria-pressed", String(b === fl))); renderFigureList(); return; }
     const fg = t.closest("[data-filter-go]"); if (fg) { S.filter = fg.dataset.filterGo; setTab("figures"); document.querySelectorAll("[data-filter]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === S.filter))); renderFigureList(); return; }
     const ch = t.closest("[data-chapter]"); if (ch) { const f = S.figures.find((x) => x.eligible && String(x.chapter_number) === ch.dataset.chapter); if (f) selectFigure(f.figure_id, { edit: false }); return; }
+    const stt = t.closest("[data-stat]");
+    if (stt) {
+      if (stt.dataset.stat === "mistakes") { $("mistakes").scrollIntoView({ behavior: "smooth" }); return; }
+      S.filter = stt.dataset.stat; setTab("figures");
+      document.querySelectorAll("[data-filter]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === S.filter)));
+      renderFigureList(); if (window.matchMedia("(max-width: 880px)").matches) setMobile("inspector");
+      return;
+    }
     if (t.closest("#correct-all")) { e.preventDefault(); correct(null); return; }
     const cr = t.closest("[data-correct]"); if (cr) { correct([cr.dataset.correct]); return; }
     const kp = t.closest("[data-keep]"); if (kp) { correct([kp.dataset.keep], true); return; }

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block header %}{% include "partials/app_header.html" %}{% endblock %}
 {% block footer %}{% endblock %}
 {% block main %}
 <div id="review-app" data-job="{{ job_id }}">
@@ -16,29 +17,29 @@
   </div>
 
   <!-- processing state -->
-  <section class="container hidden" id="processing" style="padding:40px 0">
-    <div class="grid-2" style="align-items:start">
-      <div class="card card-pad card-lg">
-        <h2 style="font-size:1.6rem">Processing your document</h2>
-        <p class="muted small" id="proc-sub">Each step below reflects the real server state. You can close this tab and come back — this page is linked to your browser session.</p>
-        <ol class="timeline" id="timeline" aria-live="polite"></ol>
-        <div id="proc-failure" class="hidden"></div>
+  <section class="container hidden" id="processing" style="padding:48px 0 64px">
+    <div class="proc-card card card-lg">
+      <div class="proc-top">
+        <div class="proc-icon" aria-hidden="true"><svg class="icon"><use href="#i-sparkle"/></svg></div>
+        <div class="grow">
+          <h2 class="proc-title" id="proc-title">Preparing your document…</h2>
+          <p class="muted small" id="proc-sub" style="margin:0">You can close this tab and come back — your document stays linked to this browser.</p>
+        </div>
+        <span class="proc-pct tnum" id="proc-pct">0%</span>
       </div>
-      <div class="card card-pad">
-        <h3>While you wait</h3>
-        <ul class="small" style="color:var(--text-2);padding-left:18px">
-          <li>Images on the original page 1 are protected and will not be captioned.</li>
-          <li>Numbers restart at each LO (or Heading 1) section.</li>
-          <li>Captions that need a human check are clearly marked.</li>
-        </ul>
-        <button class="btn btn-danger btn-sm" type="button" data-delete-upload><svg class="icon"><use href="#i-trash"/></svg>Delete my files</button>
+      <div class="progress proc-bar" aria-hidden="true"><i id="proc-fill"></i></div>
+      <ol class="timeline" id="timeline" aria-live="polite"></ol>
+      <div id="proc-failure" class="hidden"></div>
+      <div class="proc-foot">
+        <span class="xs muted"><svg class="icon" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-shield"/></svg> Cover-page images are protected · numbers restart at each LO · uncertain captions are flagged</span>
+        <button class="btn btn-ghost btn-xs" type="button" data-delete-upload style="color:var(--error)"><svg class="icon"><use href="#i-trash"/></svg>Delete my files</button>
       </div>
     </div>
   </section>
 
   <!-- review state -->
   <section id="review-ui" class="hidden">
-    <div class="wide" style="padding:12px 0"><div class="report" id="report" aria-live="polite"></div></div>
+    <div class="wide stats-wrap"><div class="stats" id="report" aria-live="polite"></div></div>
     <div class="wide hidden" id="mistakes" style="padding-bottom:12px"></div>
     <div class="mobile-tabs" role="tablist" aria-label="Review panes">
       <button role="tab" aria-selected="true" data-mtab="viewer">Preview</button>
@@ -49,8 +50,8 @@
       <aside class="rail" data-mpane="rail" aria-label="Document outline">
         <h3>Sections</h3>
         <ul class="outline" id="outline"></ul>
-        <h3>Issues</h3>
-        <div id="issues" class="small"></div>
+        <details class="checks" id="checks"><summary><span>Things to check</span><span class="count-badge" id="checks-count">0</span></summary>
+          <div id="issues" class="small"></div></details>
         <h3>Pages</h3>
         <div class="thumbs" id="thumbs"></div>
       </aside>
