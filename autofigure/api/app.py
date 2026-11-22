@@ -40,11 +40,26 @@ def create_app() -> FastAPI:
     async def security_mw(request: Request, call_next):
         request.state.request_id = uuid.uuid4().hex[:12]
         start = time.time()
+        path = request.url.path
         cl = request.headers.get("content-length")
-        max_body = (db.service_settings()["max_upload_mb"] + 2) * 1024 * 1024
-        if cl and cl.isdigit() and int(cl) > max_body:
-            return error_response(request, 413, "too_large", "The upload is larger than the allowed limit.")
-        response: Response = await call_next(request)
+        if cl and cl.isdigit() and not path.startswith("/static/"):
+            try:
+                max_body = (db.service_settings()["max_upload_mb"] + 2) * 1024 * 1024
+            except Exception:
+                max_body = 52 * 1024 * 1024
+            if int(cl) > max_body:
+                return error_response(request, 413, "too_large", "The upload is larger than the allowed limit.")
+        try:
+            response: Response = await call_next(request)
+        except Exception as exc:  # never fall through to a bare "Internal Server Error"
+            log.exception("request_failed id=%s type=%s", request.state.request_id, type(exc).__name__)
+            if path.startswith("/api"):
+                response = error_response(request, 500, "internal_error", "Something went wrong on our side. Please try again.")
+            else:
+                response = HTMLResponse("<!doctype html><meta charset=utf-8><title>Please try again</title>"
+                                        "<body style='font-family:system-ui;max-width:560px;margin:15vh auto;padding:0 16px'>"
+                                        "<h1>Please try again</h1><p>The server had a temporary problem. Reload the page in a few seconds.</p>"
+                                        "<p><a href='/'>Go home</a></p></body>", status_code=503)
         h = response.headers
         h["Content-Security-Policy"] = CSP
         h["X-Content-Type-Options"] = "nosniff"
@@ -53,9 +68,10 @@ def create_app() -> FastAPI:
         h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
         h["Cross-Origin-Opener-Policy"] = "same-origin"
         h["X-Request-ID"] = request.state.request_id
+        if path.startswith("/static/"):
+            h["Cache-Control"] = "public, max-age=3600"
         if cfg.secure_cookies:
             h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        path = request.url.path
         if path.startswith("/api") or path.startswith("/owner"):
             h.setdefault("Cache-Control", "no-store")
         if path.startswith("/owner"):
@@ -90,7 +106,11 @@ def create_app() -> FastAPI:
 
     def render(request: Request, template: str, ctx: dict | None = None, status: int = 200) -> HTMLResponse:
         ctx = dict(ctx or {})
-        svc = db.service_settings()
+        try:
+            svc = db.service_settings()
+        except Exception:
+            svc = {"retention_days": cfg.retention_days, "max_upload_mb": cfg.max_upload_mb, "maintenance_mode": False,
+                   "maintenance_message": ""}
         ctx.update({
             "request": request, "owner_name": cfg.owner_display_name, "version": cfg.version,
             "retention_days": svc["retention_days"], "max_upload_mb": svc["max_upload_mb"],

@@ -273,11 +273,31 @@ class _PgCursor:
 
 
 class PgConn:
-    """Minimal sqlite3-compatible facade over psycopg (autocommit; explicit BEGIN/COMMIT in tx())."""
+    """sqlite3-compatible facade over psycopg (autocommit; explicit BEGIN/COMMIT in tx()).
+
+    Serverless hosts freeze the process between requests and Neon closes idle connections meanwhile, so a dead
+    connection is detected and replaced transparently (only outside an open transaction, where retrying is safe).
+    """
 
     def __init__(self, url: str):
+        self.url = url
+        self.in_tx = False
+        self._c = None
+        self._open()
+
+    def _open(self):
         import psycopg
-        self._c = psycopg.connect(url, autocommit=True, prepare_threshold=None)
+        if self._c is not None:
+            try:
+                self._c.close()
+            except Exception:
+                pass
+        self._c = psycopg.connect(self.url, autocommit=True, prepare_threshold=None, connect_timeout=15,
+                                  keepalives=1, keepalives_idle=30)
+
+    @property
+    def closed(self) -> bool:
+        return self._c is None or self._c.closed
 
     @staticmethod
     def _sql(sql: str) -> str:
@@ -285,12 +305,35 @@ class PgConn:
         return sql.replace("%", "%%").replace("?", "%s")
 
     def execute(self, sql: str, params=()):
-        cur = self._c.cursor()
-        cur.execute(self._sql(sql), tuple(bytes(p) if isinstance(p, memoryview) else p for p in params) if params else None)
+        import psycopg
+        stmt = sql.strip().upper()
+        args = tuple(bytes(p) if isinstance(p, memoryview) else p for p in params) if params else None
+        attempts = 1 if self.in_tx and not stmt.startswith("BEGIN") else 2
+        for attempt in range(attempts):
+            try:
+                if self.closed:
+                    self._open()
+                cur = self._c.cursor()
+                cur.execute(self._sql(sql), args)
+                break
+            except (psycopg.OperationalError, psycopg.InterfaceError):
+                if attempt + 1 >= attempts:
+                    self.in_tx = False
+                    raise
+                self._open()
+        if stmt.startswith("BEGIN"):
+            self.in_tx = True
+        elif stmt in ("COMMIT", "ROLLBACK"):
+            self.in_tx = False
         return _PgCursor(cur)
 
     def executescript(self, script: str):
-        self._c.execute(script)
+        import psycopg
+        try:
+            self._c.execute(script)
+        except (psycopg.OperationalError, psycopg.InterfaceError):
+            self._open()
+            self._c.execute(script)
 
 
 def _pg_schema(sql: str) -> str:
@@ -304,7 +347,7 @@ def connect():
     cfg = get_config()
     key = database_url() or str(cfg.db_path)
     conn = getattr(_local, "conn", None)
-    if conn is not None and getattr(_local, "path", None) == key:
+    if conn is not None and getattr(_local, "path", None) == key and not getattr(conn, "closed", False):
         return conn
     if is_postgres():
         conn = PgConn(database_url())
@@ -348,7 +391,10 @@ def tx() -> Iterator[Any]:
         yield conn
         conn.execute("COMMIT")
     except BaseException:
-        conn.execute("ROLLBACK")
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass  # connection already gone; the server rolls back on its own
         raise
 
 
@@ -396,7 +442,18 @@ DEFAULT_SERVICE_SETTINGS = {
 }
 
 
+_svc_cache: dict = {"at": 0.0, "data": None}
+
+
 def service_settings() -> dict:
+    if _svc_cache["data"] is not None and time.time() - _svc_cache["at"] < 20:
+        return dict(_svc_cache["data"])
+    data = _service_settings_uncached()
+    _svc_cache.update(at=time.time(), data=dict(data))
+    return data
+
+
+def _service_settings_uncached() -> dict:
     row = q1("SELECT data FROM settings_versions ORDER BY version DESC LIMIT 1")
     data = dict(DEFAULT_SERVICE_SETTINGS)
     if row:

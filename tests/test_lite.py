@@ -111,3 +111,15 @@ def test_owner_setup_page_without_command_line(app, monkeypatch):
                                                  "totp": totp_at(secret, time.time())})
     assert r.status_code == 200
     assert c.post("/api/owner/bootstrap", json={"setup_key": "a-long-random-setup-key-123"}).status_code == 409
+
+
+def test_survives_database_dropping_idle_connections(app):
+    """Neon closes idle connections while Vercel freezes the function; requests must reconnect, not 500."""
+    import psycopg
+    from autofigure import db
+    c = make_client(app)
+    assert c.get("/static/css/app.css").status_code == 200
+    with psycopg.connect(db.database_url(), autocommit=True) as admin:
+        admin.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()")
+    for path in ("/static/css/app.css", "/how-it-works", "/api/session", "/owner/login"):
+        assert c.get(path).status_code == 200, path
