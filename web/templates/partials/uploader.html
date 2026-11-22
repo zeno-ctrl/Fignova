@@ -1,0 +1,50 @@
+<form class="card card-lg uploader" id="upload-form" novalidate aria-describedby="upload-help">
+  <div class="dropzone" id="dropzone" data-state="idle">
+    <input type="file" id="file-input" name="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="upload-help upload-error">
+    <div class="dz-icon" aria-hidden="true"><svg class="icon" style="width:28px;height:28px"><use href="#i-upload"/></svg></div>
+    <strong>Drop a Word document here, or <span style="color:var(--primary);text-decoration:underline">browse</span></strong>
+    <span class="muted small" id="upload-help">Microsoft Word .docx only · up to {{ max_upload_mb }} MB · e.g. <span class="mono">Unit5_Assignment.docx</span></span>
+    <div class="limits" aria-hidden="true"><span class="pill">.docx</span><span class="pill">Images after page 1</span><span class="pill">LO / Heading 1 numbering</span></div>
+  </div>
+  <div id="file-chip" class="file-chip hidden">
+    <div class="doc-badge" aria-hidden="true">W</div>
+    <div class="grow"><div class="fname" id="file-name"></div><div class="xs muted" id="file-meta"></div></div>
+    <button type="button" class="btn btn-ghost btn-sm" id="file-remove">Replace</button>
+  </div>
+  <div id="upload-error" class="field-error hidden" role="alert"></div>
+
+  <details class="adv" id="settings-drawer">
+    <summary>Caption settings</summary>
+    <div class="form-grid">
+      <div><label class="lbl" for="s-language">Caption language</label>
+        <select id="s-language" name="language"><option value="auto">Auto detect</option><option value="en">English</option><option value="my">Burmese (မြန်မာ)</option></select></div>
+      <div><label class="lbl" for="s-tone">Tone</label>
+        <select id="s-tone" name="tone"><option value="academic">Academic</option><option value="professional">Professional</option><option value="technical">Technical</option><option value="plain">Plain language</option></select></div>
+      <div><label class="lbl" for="s-length">Length</label>
+        <select id="s-length" name="length"><option value="short">Short</option><option value="standard" selected>Standard</option><option value="detailed">Detailed</option></select></div>
+      <div><label class="lbl" for="s-existing">Existing captions</label>
+        <select id="s-existing" name="existing_mode"><option value="renumber">Keep descriptions and renumber</option><option value="skip">Skip already captioned figures</option><option value="replace">Replace with AI suggestions</option></select></div>
+      <div><label class="lbl" for="s-prefix">Label prefix</label><input id="s-prefix" name="prefix" type="text" value="Figure" maxlength="24"></div>
+      <div><label class="lbl" for="s-number">Number format</label>
+        <select id="s-number" name="number_style"><option value="chapter">Chapter.Figure (1.1, 1.2, 2.1)</option><option value="chapter_dash">Chapter-Figure (1-1, 1-2)</option><option value="document">Whole document (1, 2, 3)</option></select></div>
+      <label class="switch full"><input type="checkbox" name="include_decorative"><span><b>Include decorative images</b><small>Also caption small icons and logos (may add captions to decorative assets).</small></span></label>
+    </div>
+    <p class="hint">More controls (alignment, font size, Word field mode, chapter mapping) are available while reviewing.</p>
+  </details>
+
+  <div class="privacy-note" id="privacy-note">
+    <svg class="icon"><use href="#i-lock"/></svg>
+    <div>
+      Your Word file is stored securely (encrypted) for processing. <b>The website owner, {{ owner_name }}, can access uploaded files to administer the service.</b>
+      Files are retained for up to {{ retention_days }} days unless you delete them earlier.
+      {% if ai_providers %}Images and short nearby text are sent to {{ ai_providers | join(" and ") }} to suggest captions; they are not used to train models by default.{% else %}Captions are suggested by AutoFigure AI on this server; no document content is sent to an outside AI provider.{% endif %}
+      <a href="/privacy">Read our Privacy Policy</a>.
+    </div>
+  </div>
+  <label class="consent"><input type="checkbox" id="consent" required><span>I understand how my document is stored, who can access it and how long it is kept.</span></label>
+  <div class="row" style="margin-top:18px">
+    <button class="btn btn-primary btn-lg" type="submit" id="upload-submit"><svg class="icon"><use href="#i-sparkle"/></svg>Generate captions</button>
+    <span class="small muted" id="upload-status" role="status" aria-live="polite"></span>
+  </div>
+  <div class="progress hidden" id="upload-progress" style="margin-top:14px" aria-hidden="true"><i></i></div>
+</form>

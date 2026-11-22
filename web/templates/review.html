@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block footer %}{% endblock %}
+{% block main %}
+<div id="review-app" data-job="{{ job_id }}">
+  <div class="ws-head">
+    <div class="wide row between">
+      <div class="row grow" style="gap:14px;min-width:0">
+        <div class="doc-badge" aria-hidden="true">W</div>
+        <div class="grow" style="min-width:0">
+          <h1 class="ws-title" id="doc-name">Loading document…</h1>
+          <div class="xs muted" id="doc-meta">&nbsp;</div>
+        </div>
+      </div>
+      <ol class="stepper" id="stepper" aria-label="Progress"><li><i>1</i>Upload</li><li><i>2</i>Analyze</li><li><i>3</i>Review</li><li><i>4</i>Download</li></ol>
+    </div>
+  </div>
+
+  <!-- processing state -->
+  <section class="container hidden" id="processing" style="padding:40px 0">
+    <div class="grid-2" style="align-items:start">
+      <div class="card card-pad card-lg">
+        <h2 style="font-size:1.6rem">Processing your document</h2>
+        <p class="muted small" id="proc-sub">Each step below reflects the real server state. You can close this tab and come back — this page is linked to your browser session.</p>
+        <ol class="timeline" id="timeline" aria-live="polite"></ol>
+        <div id="proc-failure" class="hidden"></div>
+      </div>
+      <div class="card card-pad">
+        <h3>While you wait</h3>
+        <ul class="small" style="color:var(--text-2);padding-left:18px">
+          <li>Images on the original page 1 are protected and will not be captioned.</li>
+          <li>Numbers restart at each LO (or Heading 1) section.</li>
+          <li>Captions that need a human check are clearly marked.</li>
+        </ul>
+        <button class="btn btn-danger btn-sm" type="button" data-delete-upload><svg class="icon"><use href="#i-trash"/></svg>Delete my files</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- review state -->
+  <section id="review-ui" class="hidden">
+    <div class="wide" style="padding:12px 0"><div class="report" id="report" aria-live="polite"></div></div>
+    <div class="wide hidden" id="mistakes" style="padding-bottom:12px"></div>
+    <div class="mobile-tabs" role="tablist" aria-label="Review panes">
+      <button role="tab" aria-selected="true" data-mtab="viewer">Preview</button>
+      <button role="tab" aria-selected="false" data-mtab="inspector">Figures</button>
+      <button role="tab" aria-selected="false" data-mtab="rail">Sections</button>
+    </div>
+    <div class="review" id="review-grid">
+      <aside class="rail" data-mpane="rail" aria-label="Document outline">
+        <h3>Sections</h3>
+        <ul class="outline" id="outline"></ul>
+        <h3>Issues</h3>
+        <div id="issues" class="small"></div>
+        <h3>Pages</h3>
+        <div class="thumbs" id="thumbs"></div>
+      </aside>
+
+      <div class="viewer" data-mpane="viewer" data-active="true">
+        <div class="toolbar" role="toolbar" aria-label="Preview controls">
+          <div class="seg" role="group" aria-label="Which document">
+            <button type="button" aria-pressed="true" data-view="output">Processed</button>
+            <button type="button" aria-pressed="false" data-view="source">Original</button>
+            <button type="button" aria-pressed="false" data-view="compare"><span class="sr-only">Compare </span>Side by side</button>
+          </div>
+          <span class="sep"></span>
+          <button class="icon-btn" type="button" data-zoom="-1" aria-label="Zoom out"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
+          <span class="small tnum" id="zoom-label" style="min-width:44px;text-align:center">100%</span>
+          <button class="icon-btn" type="button" data-zoom="1" aria-label="Zoom in"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+          <button class="icon-btn" type="button" data-fit="width" aria-label="Fit width"><svg class="icon"><use href="#i-width"/></svg></button>
+          <button class="icon-btn" type="button" data-fit="page" aria-label="Fit page"><svg class="icon"><use href="#i-page"/></svg></button>
+          <span class="sep"></span>
+          <label class="small" for="page-jump">Page</label>
+          <input type="number" id="page-jump" min="1" value="1" aria-label="Go to page"><span class="small muted tnum" id="page-total">/ –</span>
+          <span class="sep"></span>
+          <input type="search" id="search" placeholder="Search text" aria-label="Search preview text">
+          <span class="small muted" id="search-result" aria-live="polite"></span>
+          <button class="icon-btn" type="button" id="fullscreen" aria-label="Full screen"><svg class="icon"><use href="#i-expand"/></svg></button>
+        </div>
+        <div class="pages" id="pages" tabindex="0" aria-label="Document pages"></div>
+      </div>
+
+      <aside class="inspector" data-mpane="inspector" aria-label="Figures and captions">
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="figures" id="tab-figures">Figures</button>
+          <button role="tab" aria-selected="false" data-tab="edit" id="tab-edit">Caption</button>
+          <button role="tab" aria-selected="false" data-tab="settings" id="tab-settings">Settings</button>
+        </div>
+        <div class="panel" data-panel="figures">
+          <div class="row between" style="margin-bottom:10px">
+            <div class="seg" role="group" aria-label="Filter figures">
+              <button type="button" aria-pressed="true" data-filter="all">All</button>
+              <button type="button" aria-pressed="false" data-filter="review">Needs review</button>
+              <button type="button" aria-pressed="false" data-filter="excluded">Skipped</button>
+            </div>
+          </div>
+          <div class="row" style="margin-bottom:12px;gap:8px">
+            <button class="btn btn-xs" type="button" id="accept-all">Accept all confident suggestions</button>
+          </div>
+          <ul class="fig-list" id="fig-list"></ul>
+        </div>
+        <div class="panel hidden" data-panel="edit" id="editor"></div>
+        <div class="panel hidden" data-panel="settings" id="settings-panel"></div>
+        <div class="dl-bar" id="dl-bar">
+          <div class="revision-state" id="rev-state" aria-live="polite"></div>
+          <div class="row" style="gap:8px">
+            <button class="btn btn-sm grow" type="button" id="apply-btn" disabled><svg class="icon"><use href="#i-refresh"/></svg>Apply changes</button>
+            <a class="btn btn-primary btn-sm grow" id="download-btn" href="#" aria-disabled="true"><svg class="icon"><use href="#i-download"/></svg>Download Word file</a>
+          </div>
+          <button class="btn btn-ghost btn-xs" type="button" data-delete-upload style="justify-self:start;color:var(--error)"><svg class="icon"><use href="#i-trash"/></svg>Delete my files</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="container hidden" id="gone" style="padding:60px 0">
+    <div class="card card-pad empty"><svg class="icon"><use href="#i-file"/></svg><h2 style="font-size:1.5rem;color:var(--text)">This document is not available</h2>
+      <p>It may have been deleted, expired after the retention period, or it belongs to a different browser session.</p><a class="btn btn-primary" href="/app">Upload a Word document</a></div>
+  </section>
+</div>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-title">
+  <form method="dialog" class="dlg">
+    <h2 id="confirm-title" style="font-size:1.4rem">Delete my upload and generated file?</h2>
+    <p class="muted" id="confirm-body">This removes your original Word file, every generated version, page previews and image thumbnails from storage now. Access through this page stops immediately. This cannot be undone.</p>
+    <div class="dlg-actions"><button class="btn" value="cancel">Keep my files</button><button class="btn btn-danger" value="confirm" id="confirm-ok">Delete my files</button></div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="/static/js/review.js?v={{ version }}" defer></script>{% endblock %}

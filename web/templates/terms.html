@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="container page-hero"><span class="eyebrow">Terms</span><h1>Terms of use</h1><p>Short and readable.</p></section>
+<section class="container prose">
+<ul>
+<li>Upload only documents you are allowed to share with this service, including with its owner as described in the <a href="/privacy">privacy notice</a>.</li>
+<li>Captions are suggestions. You are responsible for reviewing the downloaded document before submitting or publishing it.</li>
+<li>Do not upload malicious files or try to access other people's documents or the administration console.</li>
+<li>The service is provided as is, without guarantees of availability or of identical layout in every version of Microsoft Word.</li>
+<li>Files are kept for up to {{ retention_days }} days and can be deleted by you at any time.</li>
+</ul>
+</section>
+{% endblock %}

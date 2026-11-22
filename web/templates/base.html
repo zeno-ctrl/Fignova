@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if title and title != "AutoFigure Studio" %}{{ title }} · {% endif %}AutoFigure Studio</title>
+<meta name="description" content="Upload a Word document. AutoFigure Studio identifies images, writes meaningful captions, numbers them by section, and gives you a full preview before you download.">
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500..700&family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+<script src="/static/js/theme.js?v={{ version }}"></script>
+{% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% include "partials/icons.html" %}
+<a class="skip-link" href="#main">Skip to content</a>
+{% if maintenance %}<div class="banner" role="status">{{ maintenance_message or "Uploads are paused for maintenance. Existing documents remain available." }}</div>{% endif %}
+{% block header %}
+<header class="site-header">
+  <div class="container nav">
+    {% include "partials/brand.html" %}
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/features" {% if path == "/features" %}aria-current="page"{% endif %}>Features</a>
+      <a href="/how-it-works" {% if path == "/how-it-works" %}aria-current="page"{% endif %}>How it works</a>
+      <a href="/help" {% if path == "/help" %}aria-current="page"{% endif %}>Help</a>
+    </nav>
+    <div class="nav-end">
+      <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark mode"><svg class="icon"><use href="#i-moon"/></svg></button>
+      <a class="btn btn-primary btn-sm btn-cta" href="/app">Open workspace</a>
+      <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="mobile-nav" data-menu aria-label="Open menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+    </div>
+  </div>
+  <div class="container mobile-nav" id="mobile-nav" data-open="false">
+    <a href="/features">Features</a><a href="/how-it-works">How it works</a><a href="/help">Help</a><a href="/about">About</a>
+    <a class="btn btn-primary" href="/app">Open workspace</a>
+  </div>
+</header>
+{% endblock %}
+<main id="main" tabindex="-1">
+{% block main %}{% endblock %}
+</main>
+{% block footer %}
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      {% include "partials/brand.html" %}
+      <p class="small" style="margin-top:12px;max-width:26em">Word-to-Word figure captioning, numbered by learning outcome, with a true preview before you download.</p>
+      <span class="creator-badge"><span class="avatar" aria-hidden="true">ZN</span>Created by {{ owner_name }}</span>
+    </div>
+    <div><h4>Product</h4><a href="/app">Workspace</a><a href="/features">Features</a><a href="/how-it-works">How it works</a></div>
+    <div><h4>Support</h4><a href="/help">Help &amp; troubleshooting</a>{% if support_contact %}<a href="{{ support_contact if '://' in support_contact else 'mailto:' ~ support_contact }}">Contact support</a>{% else %}<span class="small">Support contact: set by the operator</span>{% endif %}<a href="/about">About</a></div>
+    <div><h4>Trust</h4><a href="/privacy">Privacy</a><a href="/terms">Terms</a><span class="small">Version {{ version }}</span></div>
+  </div>
+</footer>
+{% endblock %}
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<script src="/static/js/common.js?v={{ version }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

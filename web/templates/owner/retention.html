@@ -1,0 +1,8 @@
+{% extends "owner/base_owner.html" %}
+{% block content %}
+<div class="row between" style="margin-bottom:16px"><p class="muted" style="margin:0" id="ret-policy"></p><button class="btn" id="run-sweep" type="button"><svg class="icon"><use href="#i-refresh"/></svg>Run retention sweep now</button></div>
+<div class="grid-2" style="align-items:start">
+  <section class="card card-pad"><h3>Next to expire</h3><div id="upcoming" class="small"></div></section>
+  <section class="card card-pad"><h3>Recently deleted or expired</h3><div id="deleted" class="small"></div><div id="orphans" style="margin-top:12px"></div></section>
+</div>
+{% endblock %}

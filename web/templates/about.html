@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="container page-hero"><span class="eyebrow">About</span><h1>About AutoFigure Studio</h1>
+<p>A focused tool for one tedious job: consistent, correctly numbered figure captions in Word documents.</p></section>
+<section class="container grid-2" style="align-items:start">
+  <div class="prose">
+    <p>Students, researchers and professionals often submit documents with dozens of screenshots, diagrams and photos organised by learning outcomes. Captioning them by hand — and keeping LO1, LO2 and LO3 numbering straight — takes hours and is easy to get wrong.</p>
+    <p>AutoFigure Studio edits the real Word file instead of rebuilding it, protects the cover page, and shows you exactly what you will download.</p>
+    <p>It does not claim perfect AI or universal Word compatibility: anything uncertain is shown to you for review.</p>
+  </div>
+  <div class="card card-pad card-lg">
+    <span class="creator-badge" style="font-size:1rem"><span class="avatar" aria-hidden="true">ZN</span>Created by {{ owner_name }}</span>
+    <p style="margin-top:16px;color:var(--text-2)">AutoFigure Studio was created by {{ owner_name }}, who is the product's founder and owner and the only person with access to its private administration console.</p>
+    <p class="small muted">The creator's name appears on this website only. It is never added to your uploaded or downloaded documents.</p>
+  </div>
+</section>
+{% endblock %}

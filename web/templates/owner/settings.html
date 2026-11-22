@@ -1,0 +1,11 @@
+{% extends "owner/base_owner.html" %}
+{% block content %}
+<div class="grid-2" style="align-items:start">
+<form class="card card-pad stack" id="svc-form"><h3>Service limits</h3><div id="svc-fields"><div class="skel" style="height:200px"></div></div>
+  <p class="hint">Changes require authenticator confirmation, are validated on the server, versioned and audited.</p>
+  <button class="btn btn-primary" type="submit">Save settings</button></form>
+<div class="stack">
+  <section class="card card-pad"><h3>Environment</h3><div id="env" class="small"></div><p class="hint">Secrets (AI keys, encryption key) are configured through server environment variables and are never shown here.</p></section>
+  <section class="card card-pad"><h3>Previous versions</h3><div id="versions" class="small"></div></section>
+</div></div>
+{% endblock %}

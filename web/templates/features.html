@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="container page-hero"><span class="eyebrow">Capabilities</span><h1>What AutoFigure Studio does</h1>
+<p>A document engine that edits real Word structure, a review workspace that shows the true output, and AutoFigure AI for descriptions you can trust or fix.</p></section>
+<section class="container grid-3">
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-hash"/></svg></div><h3>LO-aware numbering</h3><p>Detects “LO1”, “LO 2”, “Learning Outcome 3”, “LO4: Evaluation” in Heading 1 (including custom styles based on Heading 1). An “Introduction” heading before LO1 does not shift numbers. Same LO split across two headings keeps counting.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-page"/></svg></div><h3>Rendered page-1 detection</h3><p>Your original is rendered and each picture is located on its displayed page — not guessed from page breaks. Pictures we cannot place are held for your confirmation.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-layers"/></svg></div><h3>Every picture, in reading order</h3><p>Inline and floating pictures, pictures in tables, VML images, grouped pictures and native charts. The same photo used twice counts as two figures.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-file"/></svg></div><h3>Native Word captions</h3><p>Caption style, SEQ fields with per-section restarts and correct cached numbers, a bookmark per caption, keep-with-image. Optional fully static mode.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-check"/></svg></div><h3>No duplicate captions</h3><p>Existing captions are detected (style, SEQ fields, text pattern). Keep and renumber, skip, or replace. Reprocessing an output never adds a second caption.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-sparkle"/></svg></div><h3>AutoFigure AI</h3><p>Built-in document-context analysis reads how you introduced each figure. When the operator enables Claude and/or ChatGPT vision models, their descriptions are cross-checked; disagreements are flagged with a one-click second opinion.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-eye"/></svg></div><h3>True preview</h3><p>Page images rendered from the exact output revision, thumbnails, zoom, fit, search, side-by-side original comparison, and caption highlights.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-undo"/></svg></div><h3>Versioned edits</h3><p>Every applied change creates a new verified revision from your untouched original. Caption history lets you restore earlier wording.</p></article>
+  <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-shield"/></svg></div><h3>Strict Word-only intake</h3><p>Signature, package structure, macro, encryption and archive-bomb checks. PDFs, images, .doc and .docm are refused before storage.</p></article>
+</section>
+{% endblock %}

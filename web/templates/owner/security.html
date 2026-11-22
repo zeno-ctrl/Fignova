@@ -1,0 +1,10 @@
+{% extends "owner/base_owner.html" %}
+{% block content %}
+<div class="grid-2" style="align-items:start">
+  <section class="card card-pad"><div class="row between"><h3>Active sessions</h3><button class="btn btn-sm" id="revoke-others" type="button">Sign out other sessions</button></div><div id="sessions" class="small"></div></section>
+  <section class="card card-pad"><h3>Multi-factor authentication</h3><div id="mfa" class="small"></div>
+    <form id="rotate-form" class="stack" style="--gap:10px;margin-top:12px"><label class="lbl" for="rot-pw">Rotate authenticator (password required)</label><input type="password" id="rot-pw" autocomplete="current-password" required><div id="rot-step"></div><button class="btn btn-sm" type="submit">Start rotation</button></form>
+    <p class="hint">Lost your device? Use a recovery code at sign-in. Operator recovery: <span class="mono">python -m autofigure owner-reset</span> on the server, then a new invitation.</p></section>
+</div>
+<section class="card card-pad" style="margin-top:20px"><h3>Recent security events</h3><div id="events" class="small"></div></section>
+{% endblock %}

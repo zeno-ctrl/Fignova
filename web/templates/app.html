@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="container page-hero" style="padding-bottom:8px">
+  <ol class="stepper" aria-label="Progress"><li data-state="active"><i>1</i>Upload</li><li><i>2</i>Analyze</li><li><i>3</i>Review</li><li><i>4</i>Download</li></ol>
+  <h1 style="font-size:clamp(2rem,4vw,2.8rem);margin-top:18px">Workspace</h1>
+  <p>Upload one Word document. You will review every figure and caption before downloading.</p>
+</section>
+<section class="container grid-2" style="align-items:start;gap:28px">
+  {% include "partials/uploader.html" %}
+  <div class="stack">
+    <div class="card card-pad">
+      <h3>Your documents in this browser</h3>
+      <p class="small muted">Only this browser session can open these. They are deleted after {{ retention_days }} days.</p>
+      <div id="my-uploads"><div class="skel" style="height:48px"></div></div>
+    </div>
+    <div class="card card-pad">
+      <h3>What happens next</h3>
+      <ol class="small" style="color:var(--text-2);padding-left:18px;margin:0">
+        <li>We verify the file is a genuine Word document.</li>
+        <li>We render your original to find which images are on page 1 (those are never captioned).</li>
+        <li>Heading 1 / LO sections set the numbers: Figure 1.1, 1.2 … then 2.1 under LO2.</li>
+        <li>AutoFigure AI suggests descriptions; you can edit every one.</li>
+        <li>You preview the actual output and download an editable .docx.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/upload.js?v={{ version }}" defer></script>{% endblock %}

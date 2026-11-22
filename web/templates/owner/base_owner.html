@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ title }} · Owner · AutoFigure Studio</title>
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+<script src="/static/js/theme.js?v={{ version }}"></script>
+</head>
+<body class="owner-body" data-section="{{ section }}">
+{% include "partials/icons.html" %}
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="owner-shell">
+  <nav class="owner-side" aria-label="Owner console">
+    <a class="brand" href="/owner/dashboard"><img class="brand-mark" src="/static/img/logo.svg" alt="" width="34" height="34"><span>AutoFigure<small>Owner console</small></span></a>
+    {% set items = [("dashboard","Overview","i-home"),("uploads","Uploads","i-file"),("jobs","Jobs","i-cpu"),("retention","Retention","i-clock"),("audit","Audit log","i-list"),("security","Security","i-shield"),("settings","Settings","i-settings")] %}
+    {% for slug, label, icon in items %}
+    <a class="navi" href="/owner/{{ slug }}" {% if section == slug %}aria-current="page"{% endif %}><svg class="icon"><use href="#{{ icon }}"/></svg>{{ label }}</a>
+    {% endfor %}
+    <div class="who"><b>Owner · {{ owner.display_name }}</b><span>Signed in with MFA</span></div>
+  </nav>
+  <div class="owner-main">
+    <header class="owner-top">
+      <h1>{{ title }}</h1>
+      <span class="pill pill-violet">{{ "Owner · " ~ owner.display_name }}</span>
+      <div style="margin-left:auto" class="row">
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark mode"><svg class="icon"><use href="#i-moon"/></svg></button>
+        <button class="btn btn-sm" type="button" id="logout"><svg class="icon"><use href="#i-logout"/></svg>Sign out</button>
+      </div>
+    </header>
+    <div class="confidential" role="note"><svg class="icon"><use href="#i-lock"/></svg>Private user content — viewing and downloads are recorded in the audit log. Do not share documents outside the service.</div>
+    <main id="main" class="owner-content" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<dialog id="stepup" aria-labelledby="stepup-title">
+  <form class="dlg" id="stepup-form">
+    <h2 id="stepup-title" style="font-size:1.3rem">Confirm it's you</h2>
+    <p class="muted small">Enter the 6-digit code from your authenticator app to continue with this sensitive action.</p>
+    <label class="lbl" for="stepup-code">Authenticator code</label>
+    <input id="stepup-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required>
+    <p class="field-error hidden" id="stepup-err" role="alert"></p>
+    <div class="dlg-actions"><button class="btn" type="button" value="cancel" id="stepup-cancel">Cancel</button><button class="btn btn-primary" type="submit">Confirm</button></div>
+  </form>
+</dialog>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<div class="chart-tip hidden" id="chart-tip" role="tooltip"></div>
+<script src="/static/js/common.js?v={{ version }}" defer></script>
+<script src="/static/js/owner.js?v={{ version }}" defer></script>
+</body>
+</html>

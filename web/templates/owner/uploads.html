@@ -1,0 +1,16 @@
+{% extends "owner/base_owner.html" %}
+{% block content %}
+<form class="row" id="filters" style="margin-bottom:16px;gap:10px" role="search">
+  <div class="grow" style="min-width:220px"><label class="sr-only" for="q">Search</label><input type="search" id="q" name="search" placeholder="Search filename, upload ID or session"></div>
+  <label class="sr-only" for="status">Status</label>
+  <select id="status" name="status" style="width:auto"><option value="">All records</option><option value="retained">Retained</option><option value="success">Ready</option><option value="processing">Processing</option><option value="failed">Failed</option><option value="expired">Expired</option><option value="deleted">Deleted</option></select>
+  <label class="sr-only" for="sort">Sort</label>
+  <select id="sort" name="sort" style="width:auto"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="size">Largest</option><option value="status">Status</option></select>
+  <label class="sr-only" for="from">From date</label><input type="date" id="from" name="from" style="width:auto;min-height:44px;border-radius:10px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);padding:0 10px">
+  <button class="btn" type="submit"><svg class="icon"><use href="#i-search"/></svg>Search</button>
+</form>
+<div class="row between" style="margin-bottom:10px"><span class="small muted" id="count"></span>
+  <button class="btn btn-danger btn-sm" type="button" id="bulk-delete" disabled><svg class="icon"><use href="#i-trash"/></svg>Delete selected</button></div>
+<div class="table-wrap"><table class="data"><thead><tr><th><input type="checkbox" id="sel-all" aria-label="Select all on this page"></th><th>File</th><th>Uploader</th><th>Uploaded</th><th class="num">Size</th><th class="num">Pages</th><th class="num">Figures</th><th class="num">Captions</th><th>Status</th><th>Retention</th></tr></thead><tbody id="rows"><tr><td colspan="10"><div class="skel" style="height:40px"></div></td></tr></tbody></table></div>
+<div class="row" style="margin-top:14px;justify-content:flex-end" id="pager"></div>
+{% endblock %}

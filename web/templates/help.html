@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="container page-hero"><span class="eyebrow">Help</span><h1>Help &amp; troubleshooting</h1><p>Supported files, common problems and what to do.</p></section>
+<section class="container prose faq">
+<h2>Supported files</h2><p><b>Microsoft Word .docx</b> up to {{ max_upload_mb }} MB. Not supported: PDF, images, .doc, .docm (macros), .rtf, .odt, PowerPoint, Excel, password-protected files.</p>
+<details><summary>“This is a PDF. Please upload a Microsoft Word (.docx) document.”</summary><p>Open the original in Word and save as .docx. Converting a PDF back to Word usually damages layout, so start from your source document.</p></details>
+<details><summary>I have a .doc file</summary><p>In Word choose File → Save As → Word Document (.docx), then upload the new file.</p></details>
+<details><summary>An image on my cover page was not captioned</summary><p>That is intentional: images displayed on page 1 of your original are never captioned. They are listed as “On original page 1 (protected)”.</p></details>
+<details><summary>A figure says “Page uncertain — confirm”</summary><p>We could not verify which page it is on. If you are sure it is not on page 1, open it and choose <b>Confirm not on page 1</b>, then apply changes.</p></details>
+<details><summary>A figure says “Before first section — assign”</summary><p>It appears before your first LO / Heading 1. Assign it to a section in the caption panel, or change “Figures before the first section” in Settings.</p></details>
+<details><summary>My numbering starts at the wrong LO number</summary><p>By default the visible LO number is used (LO4 → Figure 4.1). Switch “LO numbering” to “Ordinal” in Settings to number sections 1, 2, 3 in order, or mark headings as ignored in Chapter mapping.</p></details>
+<details><summary>Numbers changed after I edited the document in Word</summary><p>Captions use Word SEQ fields. Select all (Ctrl+A) and press F9 to update fields after adding or moving pictures. If you prefer static text, switch “Word field mode” to Static.</p></details>
+<details><summary>The preview pagination differs from Word</summary><p>The preview is rendered with LibreOffice from the exact file you download. Word may break pages slightly differently when fonts differ. Captions and their positions are the same.</p></details>
+<details><summary>Images inside text boxes or SmartArt</summary><p>These are listed as “Unsupported placement” and are not edited automatically, to avoid damaging layout. You can force inclusion from the caption panel; check the result in the preview.</p></details>
+<details><summary>Processing failed</summary><p>The error shows what happened and a support ID. Your original is never modified. Try re-saving the document in Word and uploading again.</p></details>
+</section>
+{% endblock %}

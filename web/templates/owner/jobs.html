@@ -1,0 +1,6 @@
+{% extends "owner/base_owner.html" %}
+{% block content %}
+<div class="row" style="margin-bottom:14px"><label class="small" for="jstate">State</label><select id="jstate" style="width:auto"><option value="">All</option><option>review_ready</option><option>failed</option><option>regenerating</option><option>uploaded</option><option>deleted</option><option>expired</option></select><span class="small muted" id="qdepth"></span></div>
+<div class="table-wrap"><table class="data"><thead><tr><th>Job</th><th>File</th><th>State</th><th>Failure</th><th>Created</th><th>Updated</th><th class="num">Revision</th><th class="num">AI calls</th><th></th></tr></thead><tbody id="jobs"></tbody></table></div>
+<h3 style="margin-top:28px">Dead-lettered tasks</h3><div id="dead" class="small"></div>
+{% endblock %}

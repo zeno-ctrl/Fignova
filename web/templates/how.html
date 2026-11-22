@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="container page-hero"><span class="eyebrow">How it works</span><h1>From your .docx to a captioned .docx</h1>
+<p>What happens to your document at each step, and the rules the engine follows.</p></section>
+<section class="container prose">
+<h2>1. Checking the Word file</h2><p>We verify the file signature and the Office Open XML package, reject macros, encrypted files, external templates and oversized archives, and record a checksum. Your original is stored encrypted and never modified.</p>
+<h2>2. Analyzing structure</h2><p>We read Word styles (with inheritance and outline levels) to find Heading 1 paragraphs and LO markers, and walk the document body in reading order to list every displayed picture — including pictures in tables and floating pictures.</p>
+<h2>3. Finding page 1</h2><p>Your original document is rendered by an isolated LibreOffice instance. Every picture is mapped to the page it is displayed on. Pictures on page 1 are excluded permanently for this job — inserting captions later can never make a cover image eligible. If a picture cannot be placed confidently, it waits for you to confirm.</p>
+<h2>4. Numbering</h2>
+<pre class="card card-pad mono" style="white-space:pre-wrap;overflow-x:auto">Heading 1: LO1 — Research / Analysis
+   [cover-page image → skipped, shown on original page 1]
+   [image A]  Figure 1.1 A cat staring
+   [image B]  Figure 1.2 Network topology overview
+Heading 1: LO2 — Implementation
+   [image C]  Figure 2.1 System configuration screenshot
+   [image D]  Figure 2.2 Test results dashboard
+Heading 1: LO3 — Evaluation
+   [image E]  Figure 3.1 Final project evaluation chart</pre>
+<p>Figures before the first section (for example under “Introduction”) are placed in a <b>Front matter / Unassigned</b> group for you to assign. Without LO headings, Heading 1 sections are used; without any headings, numbering runs 1, 2, 3 across the document.</p>
+<h2>5. Describing images — AutoFigure AI</h2><p>AutoFigure AI first reads the sentence you wrote to introduce the figure (“The network topology used in the lab is shown next.”) and author alt text. When the operator enables vision models (Claude by Anthropic and/or ChatGPT by OpenAI), each image is also described by those models with instructions to describe only what is visible; with two models, their answers are compared. Low-confidence or conflicting captions are marked <b>needs review</b>.</p>
+<h2>6. Writing captions</h2><p>A Caption-style paragraph is inserted directly below each picture (in the same table cell when the picture is in a table) with a Word SEQ field. Only those paragraphs, the Caption style (if missing) and optional field settings change. The output is verified — package integrity, every caption present exactly once with the expected text next to its picture — before it is offered.</p>
+<h2>7. Preview and download</h2><p>The exact output file is rendered to pages for you to inspect. When you edit captions and apply changes, a new revision is generated from your original and rendered again. The download button always gives the latest verified revision.</p>
+<p><a class="btn btn-primary" href="/app">Open workspace</a></p>
+</section>
+{% endblock %}

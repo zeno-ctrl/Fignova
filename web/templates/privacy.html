@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="container page-hero"><span class="eyebrow">Privacy</span><h1>Privacy notice</h1>
+<p>Plain answers about what happens to your Word document. This notice describes the configuration of this deployment.</p></section>
+<section class="container prose">
+<div class="notice warn"><svg class="icon"><use href="#i-eye"/></svg><div><b>Owner access.</b> Your uploaded Word document and generated file may be accessed by the verified website owner, {{ owner_name }}, for administration and support while they are retained.</div></div>
+<h2>Who operates this service</h2><p>{% if operator_name %}{{ operator_name }}{% else %}The service operator (details to be supplied by the operator before production use){% endif %}. Product created by {{ owner_name }}.</p>
+<h2>What we store</h2><ul><li>Your original .docx, unchanged, encrypted at rest (AES-256-GCM) in private storage at {{ storage_region }}.</li><li>Generated .docx revisions, rendered page images and figure thumbnails for your job.</li><li>Processing metadata: file name, size, checksum, page and figure counts, captions, job status and timestamps.</li><li>A random session identifier in a secure cookie so only your browser can open your job. We do not ask for your name or email.</li></ul>
+<h2>Why</h2><p>Only to process your document, show you the preview, let you download the result, and administer and support the service.</p>
+<h2>Who can access it</h2><ul><li><b>You</b>, through the browser session that uploaded the file.</li><li><b>The verified owner, {{ owner_name }}</b>, through a separate console protected by password and authenticator-app multi-factor sign-in. Every owner preview, download and deletion is recorded in a tamper-evident audit log.</li><li>No other users. Documents are never shared between users or published.</li></ul>
+<h2>AI processing</h2>
+{% if ai_providers %}<p>To suggest captions, each eligible image, its section heading and a short excerpt of nearby text are sent to: <b>{{ ai_providers | join(", ") }}</b>. Document text is sent as reference data only. We do not ask providers to train on your content, and API terms of these providers do not use API data for training by default.</p>
+{% else %}<p>This deployment uses AutoFigure AI's built-in document-context analysis on the server. <b>No document content is sent to an outside AI provider.</b> If the operator enables an external vision model (Anthropic Claude or OpenAI ChatGPT), this notice and the upload card will name it before you upload.</p>{% endif %}
+<h2>How long we keep it</h2><p>Up to <b>{{ retention_days }} days</b> from upload. An automatic job then deletes the original, all generated files, previews and thumbnails. Minimal records (that an upload existed, its size, timestamps and audit events) are kept without document content so the service can be operated and secured. Backups, if the operator configures them, expire on the operator's backup schedule.</p>
+<h2>Deleting your files</h2><p>Use <b>Delete my files</b> on the review page or in the workspace list. Access stops immediately and stored content is removed at once. Deleted files are no longer available to the owner either.</p>
+<h2>Security</h2><p>HTTPS (in production), HTTP-only secure cookies, CSRF protection, strict content security policy, rate limiting, isolated document rendering without network access, and least-privilege processing. No system is perfectly secure; please do not upload documents you are not permitted to share with the service owner.</p>
+<h2>Contact</h2><p>{% if support_contact %}{{ support_contact }}{% else %}Contact details are supplied by the operator.{% endif %}</p>
+<p class="small muted">This page is not a certification of legal compliance. Operators must complete applicable regulatory documentation before production deployment.</p>
+</section>
+{% endblock %}

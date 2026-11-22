@@ -1,0 +1,11 @@
+{% extends "owner/base_owner.html" %}
+{% block content %}
+<div class="row between" style="margin-bottom:18px"><p class="muted" style="margin:0">Real figures from the database. Period:</p>
+  <div class="seg" role="group" aria-label="Period"><button type="button" data-days="7" aria-pressed="false">7 days</button><button type="button" data-days="30" aria-pressed="true">30 days</button><button type="button" data-days="90" aria-pressed="false">90 days</button></div></div>
+<div class="metrics" id="metrics"><div class="card metric skel" style="height:96px"></div><div class="card metric skel" style="height:96px"></div><div class="card metric skel" style="height:96px"></div><div class="card metric skel" style="height:96px"></div></div>
+<div class="grid-2" style="margin-top:20px;grid-template-columns:1.6fr 1fr">
+  <section class="card card-pad"><h3>New uploads per day</h3><div id="chart"></div><details style="margin-top:10px"><summary class="small">Show as table</summary><div id="chart-table" class="small"></div></details></section>
+  <section class="card card-pad"><h3>Jobs by status</h3><ul class="status-list" id="status-list"></ul><h3 style="margin-top:20px">Needs attention</h3><div id="attention" class="small"></div></section>
+</div>
+<section class="card card-pad" style="margin-top:20px"><div class="row between"><h3>Latest uploads</h3><a class="btn btn-sm" href="/owner/uploads">Open uploads library</a></div><div id="latest"></div></section>
+{% endblock %}

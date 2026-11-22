@@ -1,0 +1,9 @@
+{% extends "owner/base_owner.html" %}
+{% block content %}
+<div id="upload-detail" data-upload="{{ upload_id }}"><div class="skel" style="height:120px"></div></div>
+<section class="card card-pad hidden" id="viewer-card" style="margin-top:20px" aria-live="polite">
+  <div class="row between"><h3 id="viewer-title">Preview</h3><button class="btn btn-sm" type="button" id="close-viewer">Close preview</button></div>
+  <div class="row" id="viewer-thumbs" style="gap:8px;overflow-x:auto;padding:6px 0 14px;flex-wrap:nowrap"></div>
+  <div id="viewer-pages" style="display:flex;flex-direction:column;align-items:center;gap:28px"></div>
+</section>
+{% endblock %}

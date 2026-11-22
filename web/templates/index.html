@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <span class="eyebrow">Word-to-Word figure captioning</span>
+      <h1>Every figure, <em>perfectly</em> in place.</h1>
+      <p class="hero-lead">Upload a Word document. AutoFigure Studio identifies images, writes meaningful captions, numbers them by section, and gives you a full preview before you download.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="/app"><svg class="icon"><use href="#i-upload"/></svg>Upload Word document</a>
+        <a class="btn btn-lg" href="/how-it-works">See how it works</a>
+      </div>
+      <p class="trust"><svg class="icon"><use href="#i-shield"/></svg>Original formatting preserved whenever technically possible.</p>
+      <p style="margin-top:22px"><span class="creator-badge"><span class="avatar" aria-hidden="true">ZN</span>Created by {{ owner_name }}</span></p>
+    </div>
+    <div class="doc-stage" aria-label="Illustrative example of a captioned Word page">
+      <div class="doc-page p1">
+        <div class="doc-h1">LO1: Background</div>
+        <div class="doc-line" style="width:92%"></div><div class="doc-line" style="width:84%"></div><div class="doc-line" style="width:64%"></div>
+        <div class="doc-img">{% include "partials/cat.svg.html" %}</div>
+        <p class="doc-cap new"><b>Figure 1.1</b> A cat staring</p>
+        <div class="doc-line" style="width:88%"></div><div class="doc-line" style="width:72%"></div>
+      </div>
+      <div class="doc-page p2" aria-hidden="true">
+        <div class="doc-h1" style="font-size:12px">LO2: Build and Test</div>
+        <div class="doc-img" style="background:linear-gradient(135deg,#e7f6f9,#f1eefe)">
+          <svg viewBox="0 0 160 100"><g fill="#19BBD2"><rect x="20" y="55" width="16" height="35" rx="2"/><rect x="45" y="35" width="16" height="55" rx="2"/><rect x="70" y="45" width="16" height="45" rx="2"/><rect x="95" y="20" width="16" height="70" rx="2"/><rect x="120" y="30" width="16" height="60" rx="2"/></g><path d="M14 90h136" stroke="#9aa8bc"/></svg>
+        </div>
+        <p class="doc-cap" style="font-size:11px"><b>Figure 2.1</b> Router throughput chart</p>
+      </div>
+      <span class="tag t1"><i></i>Heading 1 detected</span>
+      <span class="tag t2"><i></i>First page protected</span>
+      <span class="tag t3"><i></i>Word-ready export</span>
+      <span class="illustrative">Illustrative example — not a processed user file.</span>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="try">
+  <div class="container grid-2" style="align-items:start">
+    <div class="section-head">
+      <span class="eyebrow">Try it with your document</span>
+      <h2>Drop a .docx. Review before anything is final.</h2>
+      <p>The upload below is the real thing — it starts an actual processing job. You will see every detected figure, the page it appears on, and the exact Word file rendered as pages before you download.</p>
+      <div class="seq" style="margin-top:28px" aria-label="Numbering example">
+        <div class="seq-item"><b>Figure 1.1</b><span>LO1</span></div><svg class="icon seq-arrow"><use href="#i-arrow"/></svg>
+        <div class="seq-item"><b>Figure 1.2</b><span>LO1</span></div><svg class="icon seq-arrow"><use href="#i-arrow"/></svg>
+        <div class="seq-item reset"><b>Figure 2.1</b><span>LO2 resets</span></div>
+      </div>
+    </div>
+    {% include "partials/uploader.html" %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head"><span class="eyebrow">Why AutoFigure</span><h2>Built for image-heavy coursework and reports</h2>
+      <p>Stop repeating Insert Caption fifty times. Keep the structure your assessor expects.</p></div>
+    <div class="grid-3">
+      <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-hash"/></svg></div><h3>Numbered by learning outcome</h3><p>Figures under LO1 become 1.1, 1.2, 1.3… and the count restarts at 2.1 when LO2 begins. Plain Heading 1 chapters work too.</p></article>
+      <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-shield"/></svg></div><h3>Cover page protected</h3><p>Images shown on the first rendered page of your original — logos, title photos — never get a caption, even when Word paginates automatically.</p></article>
+      <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-file"/></svg></div><h3>Real Word captions</h3><p>Captions use Word's Caption style and SEQ fields directly below each picture, including inside tables. Your text, tables and headers stay untouched.</p></article>
+      <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-sparkle"/></svg></div><h3>AutoFigure AI descriptions</h3><p>Captions grounded in what the picture shows and how you introduced it. Uncertain ones are flagged for review — never presented as fact.</p></article>
+      <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-eye"/></svg></div><h3>A preview that is the real file</h3><p>The preview is rendered from the exact .docx you will download. Edit a caption, apply, and the pages update.</p></article>
+      <article class="card feature"><div class="ficon"><svg class="icon"><use href="#i-lock"/></svg></div><h3>Private by design</h3><p>Encrypted storage, unguessable links tied to your browser session, deletion whenever you want, and a clear retention period.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head"><span class="eyebrow">Workflow</span><h2>Five steps, no dead ends</h2></div>
+    <div class="steps">
+      <div class="card step"><h3>Upload</h3><p>Choose a .docx. We check it is a genuine Word file before storing anything.</p></div>
+      <div class="card step"><h3>Analyze</h3><p>We render the original to find page 1, read Heading 1 / LO sections and every picture.</p></div>
+      <div class="card step"><h3>Caption</h3><p>AutoFigure AI suggests a description per figure; numbering follows your sections.</p></div>
+      <div class="card step"><h3>Review</h3><p>Inspect pages, fix wording, include or exclude figures, then apply changes.</p></div>
+      <div class="card step"><h3>Download</h3><p>Get an editable Word file named <span class="mono">…_AutoFigure.docx</span>. Delete your files any time.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head"><span class="eyebrow">Before and after</span><h2>Same content. Captions added — nothing else rewritten.</h2></div>
+    <div class="compare">
+      <figure><figcaption><span class="pill">Before</span>Your page</figcaption>
+        <div class="mini-page"><div class="doc-h1">LO1: Background</div><div class="doc-line" style="width:90%"></div><div class="doc-line" style="width:70%"></div>
+          <div class="doc-img" style="width:62%">{% include "partials/cat.svg.html" %}</div><div class="doc-line" style="width:86%"></div><div class="doc-line" style="width:60%"></div></div></figure>
+      <figure><figcaption><span class="pill pill-accent">After</span>AutoFigure output</figcaption>
+        <div class="mini-page"><div class="doc-h1">LO1: Background</div><div class="doc-line" style="width:90%"></div><div class="doc-line" style="width:70%"></div>
+          <div class="doc-img" style="width:62%">{% include "partials/cat.svg.html" %}</div><p class="doc-cap"><b>Figure 1.1</b> A cat staring</p><div class="doc-line" style="width:86%"></div><div class="doc-line" style="width:60%"></div></div></figure>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container grid-2">
+    <div class="card card-pad"><span class="eyebrow">Placement reliability</span><h3 style="margin-top:10px">Where captions go, and when we ask you</h3>
+      <ul class="small" style="color:var(--text-2);padding-left:18px">
+        <li>Inline pictures: a Caption paragraph directly below, kept with the image.</li>
+        <li>Pictures in table cells: the caption stays in the same cell.</li>
+        <li>Floating pictures: placed after their anchor paragraph and flagged for a visual check.</li>
+        <li>Text boxes, SmartArt and drawing canvases are listed for review instead of being edited.</li>
+        <li>If a page assignment cannot be verified, the figure waits for your confirmation.</li>
+      </ul></div>
+    <div class="card card-pad"><span class="eyebrow">Security &amp; privacy</span><h3 style="margin-top:10px">Who can see your document</h3>
+      <p class="small" style="color:var(--text-2)">Only your browser session can open your job. The verified website owner, {{ owner_name }}, can access retained uploads to administer the service, using a separate, multi-factor protected console where every view and download is logged. Files are deleted after {{ retention_days }} days or when you choose <b>Delete my files</b>.</p>
+      <a href="/privacy" class="btn btn-sm">Read the privacy details</a></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container faq" style="max-width:860px">
+    <div class="section-head"><span class="eyebrow">Honest FAQ</span><h2>Questions people ask</h2></div>
+    <details><summary>Will the downloaded file look exactly like the preview?</summary><p>The preview is rendered from the exact output file with LibreOffice. Microsoft Word can paginate slightly differently depending on installed fonts and version, so page breaks may shift a little. The captions, their text and positions are the same file.</p></details>
+    <details><summary>Are the captions real Word captions?</summary><p>Yes. By default they use the Caption style with a Word SEQ field, so they appear in a Table of Figures. Chapter numbers (the “1.” in 1.2) are written as text so the numbering is correct without changing your heading numbering. You can switch to fully static text in the settings.</p></details>
+    <details><summary>What if my document has no LO headings?</summary><p>We use your Heading 1 sections. With no headings at all, figures are numbered 1, 2, 3 across the document and the review screen lets you map sections manually.</p></details>
+    <details><summary>Can the AI be wrong?</summary><p>Yes. Suggestions are grounded in the image and your own introductory sentences, but they can still be imprecise. Low-confidence captions are flagged “needs review” and every caption is editable before download.</p></details>
+    <details><summary>Do you accept PDF or .doc files?</summary><p>No. Only .docx is accepted so we can edit the real Word structure. In Word use File → Save As → Word Document (.docx).</p></details>
+    <details><summary>Is there a cost or account?</summary><p>No account is needed. Your job is tied to a private session in this browser.</p></details>
+  </div>
+</section>
+
+<section class="container">
+  <div class="cta-band"><h2>Ready to caption your figures?</h2><p>Upload a Word document and review every caption before you download.</p>
+    <a class="btn btn-accent btn-lg" href="/app"><svg class="icon"><use href="#i-upload"/></svg>Choose Word file</a></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/upload.js?v={{ version }}" defer></script>{% endblock %}
