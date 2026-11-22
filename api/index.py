@@ -17,15 +17,8 @@ REQUIRED = {
     "AUTOFIGURE_OWNER_SETUP_KEY": "Any long password (16+ characters), used once at /owner/setup.",
 }
 
-try:
-    from autofigure.api.app import create_app  # noqa: E402
-
-    app = create_app()
-except Exception as exc:  # pragma: no cover - only on misconfigured deployments
-    traceback.print_exc()  # full detail goes to Vercel → Runtime Logs
-    err = f"{type(exc).__name__}: {exc}"[:400]
-
-    async def app(scope, receive, send):  # minimal ASGI fallback
+def _setup_page(err: str):
+    async def setup_app(scope, receive, send):  # minimal ASGI fallback
         if scope["type"] != "http":
             return
         has_db = bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL"))
@@ -47,3 +40,18 @@ code{{background:#e3f7fa;padding:2px 6px;border-radius:6px}}.err{{background:#fd
         await send({"type": "http.response.start", "status": 503,
                     "headers": [(b"content-type", b"text/html; charset=utf-8"), (b"cache-control", b"no-store")]})
         await send({"type": "http.response.body", "body": body})
+
+    return setup_app
+
+
+def _build():
+    try:
+        from autofigure.api.app import create_app
+        return create_app()
+    except Exception as exc:  # pragma: no cover - only on misconfigured deployments
+        traceback.print_exc()  # full detail goes to Vercel → Runtime Logs
+        return _setup_page(f"{type(exc).__name__}: {exc}"[:400])
+
+
+# Vercel's Python builder looks for a module-level `app`.
+app = _build()
