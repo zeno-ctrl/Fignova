@@ -109,7 +109,8 @@ def rate_limit(bucket: str, limit: int, window_s: int) -> bool:
     with db.tx() as c:
         row = c.execute("SELECT window_start, count FROM rate_limits WHERE bucket=?", (bucket,)).fetchone()
         if row is None or now - row["window_start"] >= window_s:
-            c.execute("INSERT OR REPLACE INTO rate_limits(bucket, window_start, count) VALUES (?,?,1)", (bucket, now))
+            c.execute("INSERT INTO rate_limits(bucket, window_start, count) VALUES (?,?,1) ON CONFLICT(bucket) DO UPDATE "
+                      "SET window_start=excluded.window_start, count=1", (bucket, now))
             return True
         if row["count"] >= limit:
             return False

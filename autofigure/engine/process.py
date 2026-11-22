@@ -26,10 +26,10 @@ class AnalysisResult:
     warnings: list[str]
 
 
-def analyze(original: bytes, timeout: int = 180) -> AnalysisResult:
+def analyze(original: bytes, timeout: int = 180, render: bool = True) -> AnalysisResult:
     pkg = DocxPackage.from_bytes(original)
     analysis, _, _ = locate(pkg)
-    pm = map_pages(original, analysis.figures, timeout)
+    pm = map_pages(original, analysis.figures, timeout, render)
     analysis.page_count = pm.page_count
     return AnalysisResult(analysis, pm.original_pdf, pm.method, pm.warnings + analysis.unsupported)
 

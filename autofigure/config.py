@@ -35,7 +35,9 @@ class Config:
     support_contact: str
     operator_name: str
     storage_region: str
-    version: str = "1.0.0"
+    lite: bool = False  # serverless host (Vercel): no LibreOffice, no background worker, no persistent disk
+    storage_backend: str = "disk"  # disk | database
+    version: str = "1.1.0"
 
     @property
     def dev_mode(self) -> bool:
@@ -59,7 +61,16 @@ def _load_key(data_dir: Path) -> bytes:
 
 @lru_cache(maxsize=1)
 def get_config() -> Config:
-    data_dir = Path(os.environ.get("AUTOFIGURE_DATA_DIR", Path.cwd() / "data")).resolve()
+    on_vercel = bool(os.environ.get("VERCEL"))
+    lite = _bool(os.environ.get("AUTOFIGURE_LITE"), on_vercel)
+    default_dir = "/tmp/autofigure" if on_vercel else str(Path.cwd() / "data")
+    data_dir = Path(os.environ.get("AUTOFIGURE_DATA_DIR", default_dir)).resolve()
+    has_pg = bool(os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL"))
+    storage_backend = os.environ.get("AUTOFIGURE_STORAGE", "database" if (on_vercel or (lite and has_pg)) else "disk")
+    if on_vercel and not os.environ.get("AUTOFIGURE_ENCRYPTION_KEY"):
+        raise RuntimeError("Set AUTOFIGURE_ENCRYPTION_KEY in Vercel → Settings → Environment Variables")
+    if on_vercel and not has_pg:
+        raise RuntimeError("Connect a Neon Postgres database in Vercel → Storage (sets DATABASE_URL)")
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "objects").mkdir(exist_ok=True)
     ai_provider = os.environ.get("AUTOFIGURE_AI_PROVIDER")
@@ -71,8 +82,10 @@ def get_config() -> Config:
         encryption_key=_load_key(data_dir),
         owner_email=(os.environ.get("AUTOFIGURE_OWNER_EMAIL") or "").strip().lower() or None,
         owner_display_name=os.environ.get("AUTOFIGURE_OWNER_NAME", "Zaw Naing Oo"),
-        public_base_url=os.environ.get("AUTOFIGURE_PUBLIC_URL", "http://localhost:8000").rstrip("/"),
-        secure_cookies=_bool(os.environ.get("AUTOFIGURE_SECURE_COOKIES"), False),
+        public_base_url=(os.environ.get("AUTOFIGURE_PUBLIC_URL") or
+                         (f"https://{os.environ['VERCEL_PROJECT_PRODUCTION_URL']}" if os.environ.get("VERCEL_PROJECT_PRODUCTION_URL")
+                          else "http://localhost:8000")).rstrip("/"),
+        secure_cookies=_bool(os.environ.get("AUTOFIGURE_SECURE_COOKIES"), on_vercel),
         max_upload_mb=int(os.environ.get("AUTOFIGURE_MAX_UPLOAD_MB", "50")),
         retention_days=int(os.environ.get("AUTOFIGURE_RETENTION_DAYS", "30")),
         ai_provider=ai_provider,
@@ -83,4 +96,6 @@ def get_config() -> Config:
         support_contact=os.environ.get("AUTOFIGURE_SUPPORT_CONTACT", ""),
         operator_name=os.environ.get("AUTOFIGURE_OPERATOR_NAME", ""),
         storage_region=os.environ.get("AUTOFIGURE_STORAGE_REGION", "the operator's server"),
+        lite=lite,
+        storage_backend=storage_backend,
     )

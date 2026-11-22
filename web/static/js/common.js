@@ -40,6 +40,40 @@
     setTimeout(() => t.remove(), ms);
   };
 
+  // Files travel in pieces on serverless hosts (4.5 MB request/response limit). Works on every host.
+  AF.fetchChunked = async function (url) {
+    const sep = url.includes("?") ? "&" : "?";
+    const get = async (i) => {
+      const res = await fetch(url + sep + "chunk=" + i, { credentials: "same-origin" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        const e = new Error((d.error && d.error.message) || "Download failed."); e.code = d.error && d.error.code; e.status = res.status; throw e;
+      }
+      return res;
+    };
+    const first = await get(0);
+    const total = Number(first.headers.get("X-Total-Chunks") || 1);
+    const parts = [await first.arrayBuffer()];
+    for (let i = 1; i < total; i++) parts.push(await (await get(i)).arrayBuffer());
+    return new Blob(parts, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  };
+  AF.saveBlob = function (blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+  // Draw a .docx in the browser (serverless mode, no server-side renderer).
+  AF.renderDocx = async function (blob, container) {
+    container.innerHTML = "";
+    const style = document.createElement("div");
+    const body = document.createElement("div");
+    container.append(style, body);
+    await window.docx.renderAsync(blob, body, style, { className: "docx", inWrapper: true, breakPages: true,
+      ignoreLastRenderedPageBreak: false, ignoreWidth: false, ignoreHeight: false, renderHeaders: true, renderFooters: true });
+    return [...body.querySelectorAll("section.docx")];
+  };
+
   AF.bytes = (n) => n == null ? "–" : n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(0) + " KB" : (n / 1048576).toFixed(1) + " MB";
   AF.date = (s) => s ? new Date(s * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "–";
   AF.dateOnly = (s) => s ? new Date(s * 1000).toLocaleDateString(undefined, { dateStyle: "medium" }) : "–";

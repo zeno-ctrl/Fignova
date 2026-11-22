@@ -22,8 +22,18 @@
     excluded_decorative: "", excluded_unassigned: "pill-warning", excluded_unsupported: "pill-warning", excluded_manual: "",
   };
 
+  // Serverless hosts (Vercel) have no background worker: the page asks the server to run this job's work.
+  S.lite = false;
+  const sessionReady = AF.api("/api/session").then((s) => { S.lite = !!s.lite; }).catch(() => {});
+  function kick() {
+    if (!S.lite || S.kicking) return;
+    S.kicking = true;
+    AF.api(API + "/process", { method: "POST" }).catch(() => {}).finally(() => { S.kicking = false; poll(); });
+  }
+
   // ------------------------------------------------------------------ job polling
   async function poll() {
+    await sessionReady;
     clearTimeout(S.pollTimer);
     let job;
     try { job = await AF.api(API); }
@@ -49,13 +59,14 @@
         S.warnedRegen = true;
         AF.toast("Your last changes could not be applied: " + job.failure.message + " The previous verified version is still available.", "error", 9000);
       }
-      if (job.state === "regenerating") S.pollTimer = setTimeout(poll, 1500);
+      if (job.state === "regenerating") { kick(); S.pollTimer = setTimeout(poll, 1500); }
     } else if (["failed", "canceled", "expired", "deleted"].includes(job.state)) {
       show("processing");
       timeline(job);
     } else {
       show("processing");
       timeline(job);
+      kick();
       S.pollTimer = setTimeout(poll, 1200);
     }
   }
@@ -172,7 +183,8 @@
       external_links_present: "The document links to external content; it was not fetched.",
     };
     w.forEach((k) => { const key = String(k).split(":")[0]; if (ISSUE[key] && !issues.includes(ISSUE[key])) issues.push(ISSUE[key]); });
-    if (S.job.summary.page_method === "explicit_breaks_only") issues.push("The renderer was unavailable, so page 1 could not be verified. Figures need confirmation.");
+    if (S.job.summary.page_method === "explicit_breaks_only" && !S.lite) issues.push("The renderer was unavailable, so page 1 could not be verified. Figures need confirmation.");
+    if (S.lite) issues.push("This server draws the preview in your browser, so page breaks can differ slightly from Microsoft Word. The captions, their text and positions are exactly what you download. Cover-page images are detected from Word's saved page layout and page breaks; check any marked “confirm”.");
     if (S.preview && S.preview.missing_highlights && S.preview.missing_highlights.length) issues.push(S.preview.missing_highlights.length + " caption(s) could not be located in the rendered preview; check them on the pages.");
     if (!S.job.vision_check && S.figures.some((f) => f.existing && f.eligible))
       issues.push("Existing caption descriptions were not compared with the images, because no vision model (Claude or ChatGPT) is configured on this server. Numbering and label mistakes were still checked.");
@@ -218,7 +230,7 @@
       const d = await AF.api(API + "/correct", { method: "POST", json: { figure_ids: ids, dismiss: !!dismiss } });
       if (d.regenerating) {
         AF.toast(d.corrected + " caption(s) corrected. Regenerating the Word file and preview…", "ok");
-        S.job.state = "regenerating"; renderDownload(); setTimeout(poll, 800);
+        S.job.state = "regenerating"; renderDownload(); kick(); setTimeout(poll, 800);
       } else { AF.toast("Kept your original caption.", "ok"); }
       await loadFigures(); renderSidebar();
     } catch (e) { AF.toast(e.message, "error"); }
@@ -265,6 +277,15 @@
       const col = document.createElement("div");
       col.className = "page-col";
       if (title) col.innerHTML = "<h4>" + AF.esc(title) + "</h4>";
+      if (man && man.state === "client") {
+        const holder = document.createElement("div");
+        holder.className = "client-doc";
+        holder.innerHTML = '<div class="page" style="--pw:720px"><div class="ph" style="--ar:0.77"></div></div>';
+        col.appendChild(holder);
+        box.appendChild(col);
+        renderClient(kind, man, holder);
+        return;
+      }
       if (!man || man.state !== "ready") {
         col.innerHTML += '<div class="notice warn" style="max-width:520px">' + AF.icon("i-alert") + "<span>" +
           (kind === "source" ? "The original preview is not available for this document." : "The preview for this revision is not ready. Apply changes again or try later.") + "</span></div>";
@@ -289,6 +310,41 @@
     lazy();
     const savedPage = store.get("page");
     if (savedPage && !S.didRestore) { S.didRestore = true; setTimeout(() => gotoPage(savedPage, false), 50); }
+  }
+
+  const blobCache = {};
+  async function renderClient(kind, man, holder) {
+    try {
+      blobCache[man.file] = blobCache[man.file] || AF.fetchChunked(man.file);
+      const sections = await AF.renderDocx(await blobCache[man.file], holder);
+      const avail = Math.max(240, $("pages").clientWidth - 48) / (S.view === "compare" ? 2.08 : 1);
+      const w = sections[0] ? sections[0].offsetWidth : 800;
+      const fit = S.fit === "page" ? Math.min(avail / w, ($("pages").clientHeight - 48) / ((sections[0] && sections[0].offsetHeight) || 1100)) : Math.min(1.2, avail / w);
+      holder.style.zoom = String(Math.max(0.2, fit * S.zoom));
+      sections.forEach((sec, i) => { sec.dataset.n = i + 1; sec.dataset.kind = kind; });
+      man.page_count = sections.length;
+      man.texts = sections.map((sec) => sec.textContent.replace(/\s+/g, " "));
+      const total = Math.max(...[...document.querySelectorAll("#pages [data-kind]")].map((x) => Number(x.dataset.n)), 1);
+      $("page-total").textContent = "/ " + total; $("page-jump").max = total;
+      if (kind === "output") {
+        const prefix = S.job.settings.prefix || "Figure";
+        const want = Object.entries(man.labels || {}).map(([fid, lab]) => [fid, prefix + " " + lab]);
+        holder.querySelectorAll("p").forEach((p) => {
+          const t = p.textContent.replace(/\s+/g, " ").trim();
+          const hit = want.find(([, key]) => t === key || (t.startsWith(key) && /^[\s:.\u2013\u2014]/.test(t.slice(key.length))));
+          if (hit) {
+            const f = S.figures.find((x) => x.figure_id === hit[0]);
+            p.classList.add("hl-client"); p.dataset.fig = hit[0];
+            p.dataset.selected = String(hit[0] === S.selected); p.dataset.review = String(!!(f && f.needs_review));
+            p.setAttribute("role", "button"); p.tabIndex = 0;
+          }
+        });
+      }
+      const savedPage = store.get("page");
+      if (savedPage && !S.didRestore) { S.didRestore = true; setTimeout(() => gotoPage(savedPage, false), 50); }
+    } catch (e) {
+      holder.innerHTML = '<div class="notice err" style="max-width:520px">' + AF.icon("i-alert") + "<span>The preview could not be drawn: " + AF.esc(e.message) + " You can still download the Word file.</span></div>";
+    }
   }
 
   let io;
@@ -333,7 +389,8 @@
     const box = $("pages");
     const line = box.scrollTop + 60;
     let cur = 1;
-    box.querySelectorAll(".page-col:last-child .page").forEach((p) => { if (p.offsetTop <= line) cur = Number(p.dataset.n); });
+    const top = box.getBoundingClientRect().top;
+    box.querySelectorAll(".page-col:last-child [data-n]").forEach((p) => { if (p.getBoundingClientRect().top - top + box.scrollTop <= line) cur = Number(p.dataset.n); });
     return cur;
   }
   let st;
@@ -349,21 +406,22 @@
 
   function renderThumbs() {
     const man = S.view === "source" ? S.source : S.preview;
+    if (man && man.state === "client") { $("thumbs").innerHTML = '<p class="xs muted" style="grid-column:1/-1">Pages are drawn in your browser; use the page box above to jump.</p>'; return; }
     if (!man || man.state !== "ready") { $("thumbs").innerHTML = ""; return; }
     $("thumbs").innerHTML = man.pages.map((p) => '<button type="button" data-n="' + p.n + '" aria-label="Go to page ' + p.n + '"><img loading="lazy" alt="" src="' + p.thumb + '"><span>' + p.n + "</span></button>").join("");
   }
 
   function gotoPage(n, smooth = true) {
-    const el = document.querySelector('#pages .page[data-n="' + n + '"][data-kind="' + (S.view === "source" ? "source" : "output") + '"]') ||
-      document.querySelector('#pages .page[data-n="' + n + '"]');
-    if (el) $("pages").scrollTo({ top: Math.max(0, el.offsetTop - 16), behavior: smooth ? "smooth" : "auto" });
+    const el = document.querySelector('#pages [data-n="' + n + '"][data-kind="' + (S.view === "source" ? "source" : "output") + '"]') ||
+      document.querySelector('#pages [data-n="' + n + '"]');
+    const box = $("pages");
+    if (el) box.scrollTo({ top: Math.max(0, box.scrollTop + el.getBoundingClientRect().top - box.getBoundingClientRect().top - 16), behavior: smooth ? "smooth" : "auto" });
   }
   function scrollToHighlight(fid) {
-    const hl = document.querySelector('.hl[data-fig="' + fid + '"]');
+    const hl = document.querySelector('.hl[data-fig="' + fid + '"], .hl-client[data-fig="' + fid + '"]');
     if (!hl) return false;
-    const page = hl.closest(".page");
     const box = $("pages");
-    box.scrollTo({ top: Math.max(0, page.offsetTop + hl.offsetTop - box.clientHeight / 2), behavior: "smooth" });
+    box.scrollTo({ top: Math.max(0, box.scrollTop + hl.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 2), behavior: "smooth" });
     return true;
   }
 
@@ -371,7 +429,7 @@
     S.selected = fid;
     store.set("selected", fid);
     document.querySelectorAll(".fig-card").forEach((c) => c.setAttribute("aria-current", String(c.dataset.fig === fid)));
-    document.querySelectorAll(".hl").forEach((h) => (h.dataset.selected = String(h.dataset.fig === fid)));
+    document.querySelectorAll(".hl, .hl-client").forEach((h) => (h.dataset.selected = String(h.dataset.fig === fid)));
     const f = S.figures.find((x) => x.figure_id === fid);
     if (!f) return;
     if (opts.scroll !== false) {
@@ -608,6 +666,7 @@
       S.job.state = "regenerating";
       renderDownload();
       AF.toast("Regenerating the Word file from your original…");
+      kick();
       setTimeout(poll, 800);
     } catch (e) { AF.toast(e.message, "error"); }
     finally { AF.busy(btn, false); renderDownload(); }
@@ -617,7 +676,14 @@
   document.addEventListener("click", (e) => {
     const t = e.target;
     const card = t.closest("[data-fig]");
-    if (card) { selectFigure(card.dataset.fig, { fromPreview: card.classList.contains("hl") }); return; }
+    if (card) { selectFigure(card.dataset.fig, { fromPreview: card.classList.contains("hl") || card.classList.contains("hl-client") }); return; }
+    if (t.closest("#download-btn") && S.lite && S.job && S.job.ready_revision) {
+      e.preventDefault();
+      const b = $("download-btn");
+      AF.busy(b, true, "Preparing…");
+      AF.fetchChunked(API + "/download").then((blob) => AF.saveBlob(blob, S.job.download_name)).catch((er) => AF.toast(er.message, "error")).finally(() => AF.busy(b, false));
+      return;
+    }
     const v = t.closest("[data-view]"); if (v) { setView(v.dataset.view); return; }
     const z = t.closest("[data-zoom]"); if (z) { S.zoom = Math.min(3, Math.max(0.4, S.zoom + Number(z.dataset.zoom) * 0.15)); S.fit = S.fit === "page" ? "width" : S.fit; store.set("zoom", S.zoom); renderPages(); return; }
     const ft = t.closest("[data-fit]"); if (ft) { S.fit = ft.dataset.fit; S.zoom = 1; store.set("zoom", 1); renderPages(); return; }

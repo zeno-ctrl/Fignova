@@ -24,6 +24,49 @@ from .common import (ApiError, check_csrf, client_ip, ensure_csrf_cookie, guest_
 
 router = APIRouter(prefix="/api")
 CONSENT_VERSION = "2026-11-22"
+CHUNK_BYTES = 3 * 1024 * 1024  # below Vercel's 4.5 MB request/response limit
+
+
+def chunked_or_full(data: bytes, chunk: Optional[int], media_type: str, filename: Optional[str] = None) -> RawResponse:
+    """Large files travel in 3 MB pieces on serverless hosts; the browser reassembles them."""
+    total = max(1, -(-len(data) // CHUNK_BYTES))
+    if chunk is None:
+        return docx_response(data, filename) if filename else RawResponse(data, media_type=media_type)
+    if chunk < 0 or chunk >= total:
+        raise ApiError(416, "bad_chunk", "Invalid chunk.")
+    return RawResponse(data[chunk * CHUNK_BYTES:(chunk + 1) * CHUNK_BYTES], media_type="application/octet-stream",
+                       headers={"X-Total-Chunks": str(total), "X-Total-Size": str(len(data)), "Cache-Control": "no-store",
+                                "Access-Control-Expose-Headers": "X-Total-Chunks, X-Total-Size"})
+
+
+@router.post("/uploads/chunk")
+async def upload_chunk(request: Request, response: Response) -> dict:
+    """Receive one ≤3 MB piece of a Word file (serverless request-size limit)."""
+    check_csrf(request)
+    limit("upload-chunk", 400, 3600, request)
+    gid = guest_session(request, response, create=True)
+    token = request.headers.get("x-upload-token", "")
+    idx = request.headers.get("x-chunk-index", "")
+    if not gid or not (16 <= len(token) <= 64) or not token.replace("-", "").isalnum() or not idx.isdigit() or int(idx) > 100:
+        raise ApiError(400, "bad_chunk", "Invalid upload piece.")
+    data = await request.body()
+    if len(data) > CHUNK_BYTES or not data:
+        raise ApiError(413, "chunk_too_large", "Upload piece too large.")
+    db.ex("INSERT INTO upload_chunks(token, idx, data, created_at) VALUES (?,?,?,?) ON CONFLICT(token, idx) DO UPDATE "
+          "SET data=excluded.data", f"{gid}:{token}", int(idx), data, db.now())
+    return {"ok": True}
+
+
+def _assemble_chunks(gid: str, token: str, count: int, max_bytes: int) -> bytes:
+    key = f"{gid}:{token}"
+    rows = db.q("SELECT idx, data FROM upload_chunks WHERE token=? ORDER BY idx", key)
+    if [r["idx"] for r in rows] != list(range(count)):
+        raise ApiError(400, "upload_incomplete", "Part of the upload is missing. Please try again.")
+    raw = b"".join(bytes(r["data"]) for r in rows)
+    db.ex("DELETE FROM upload_chunks WHERE token=?", key)
+    if len(raw) > max_bytes:
+        raise ApiError(400, "too_large", "The file is larger than the allowed limit.")
+    return raw
 
 
 @router.get("/session")
@@ -39,6 +82,8 @@ def session_info(request: Request, response: Response) -> dict:
         "ai_provider": provider_label(cfg.ai_provider),
         "maintenance": svc["maintenance_mode"],
         "maintenance_message": svc["maintenance_message"],
+        "lite": cfg.lite,
+        "chunk_bytes": CHUNK_BYTES,
     }
 
 
@@ -62,8 +107,9 @@ def provider_label(p: str) -> Optional[str]:
 
 
 @router.post("/uploads", status_code=202)
-async def create_upload(request: Request, response: Response, file: UploadFile = File(...),
-                        consent: str = Form(""), settings: str = Form("{}")) -> dict:
+async def create_upload(request: Request, response: Response, file: Optional[UploadFile] = File(None),
+                        consent: str = Form(""), settings: str = Form("{}"), chunk_token: str = Form(""),
+                        chunk_count: int = Form(0), filename: str = Form("")) -> dict:
     check_csrf(request)
     svc = db.service_settings()
     if svc["maintenance_mode"]:
@@ -76,8 +122,15 @@ async def create_upload(request: Request, response: Response, file: UploadFile =
     except ValidationError:
         raise ApiError(400, "invalid_settings", "Caption settings are invalid.")
     max_bytes = svc["max_upload_mb"] * 1024 * 1024
-    raw = await file.read(max_bytes + 1)
-    name = safe_display_name(file.filename or "")
+    if file is not None:
+        raw = await file.read(max_bytes + 1)
+        name = safe_display_name(file.filename or "")
+    elif chunk_token and 0 < chunk_count <= 100:
+        gid0 = guest_session(request, response, create=True)
+        raw = _assemble_chunks(gid0, chunk_token, chunk_count, max_bytes + 1)
+        name = safe_display_name(filename)
+    else:
+        raise ApiError(400, "no_file", "Choose a Word (.docx) file first.")
     v = validate_docx(name, raw, Limits(max_bytes=max_bytes))
     if not v.ok:
         # rejected files are never stored or sent anywhere
@@ -399,6 +452,8 @@ def preview_manifest_for(job_id: str, kind: str, revision: Optional[int], base: 
     if kind == "source":
         job = db.q1("SELECT upload_id FROM jobs WHERE id=?", job_id)
         row = db.q1("SELECT state, manifest FROM source_previews WHERE upload_id=?", job["upload_id"])
+        if row and row["state"] == "client":
+            return {"state": "client", "kind": "source", "file": f"{base}/file?kind=source"}
         if not row or row["state"] != "ready":
             return {"state": row["state"] if row else "missing", "pages": []}
         man = db.jload(row["manifest"])
@@ -412,6 +467,9 @@ def preview_manifest_for(job_id: str, kind: str, revision: Optional[int], base: 
         if not row or row["preview_state"] != "ready":
             return {"state": row["preview_state"] if row else "missing", "pages": []}
         man = db.jload(row["preview_manifest"])
+        if man.get("client"):
+            return {"state": "client", "kind": "output", "revision": revision, "labels": man.get("labels", {}),
+                    "file": f"{base}/file?kind=output&revision={revision}"}
         rev_label = str(revision)
     pages = [{"n": p["n"], "w": p["w"], "h": p["h"],
               "src": f"{base}/pages/{kind}/{rev_label}/{p['n']}", "thumb": f"{base}/pages/{kind}/{rev_label}/{p['n']}?thumb=1"}
@@ -460,12 +518,52 @@ def get_page(job_id: str, kind: str, rev: str, n: int, request: Request, thumb: 
                        headers={"Cache-Control": "private, max-age=3600"})
 
 
+def file_bytes(job_id: str, kind: str, revision: Optional[int]) -> bytes:
+    if kind == "source":
+        row = db.q1("SELECT u.object_key FROM jobs j JOIN uploads u ON u.id=j.upload_id WHERE j.id=?", job_id)
+        key = row["object_key"] if row else None
+    else:
+        if revision is None:
+            r = db.q1("SELECT ready_revision FROM jobs WHERE id=?", job_id)
+            revision = r["ready_revision"] if r else None
+        row = db.q1("SELECT docx_key FROM output_revisions WHERE job_id=? AND revision=?", job_id, revision)
+        key = row["docx_key"] if row else None
+    if not key:
+        raise not_found()
+    return store().get(key)
+
+
+@router.get("/jobs/{job_id}/file")
+def job_file(job_id: str, request: Request, kind: str = "output", revision: Optional[int] = None,
+             chunk: Optional[int] = None) -> RawResponse:
+    """Word bytes for the in-browser preview (serverless mode)."""
+    guest_job(request, job_id)
+    if kind not in ("source", "output"):
+        raise not_found()
+    return chunked_or_full(file_bytes(job_id, kind, revision), chunk if chunk is not None else 0, DOCX_MEDIA)
+
+
+@router.post("/jobs/{job_id}/process")
+def process_now(job_id: str, request: Request) -> dict:
+    """Serverless hosts have no background worker: the browser asks the server to run this job's queued work."""
+    check_csrf(request)
+    guest_job(request, job_id)
+    limit("process", 300, 3600, request)
+    from ..pipeline import run_job_tasks
+    import os
+    n = run_job_tasks(job_id, max_seconds=40 if os.environ.get("VERCEL") else 240)
+    return {"ran": n, "state": db.q1("SELECT state FROM jobs WHERE id=?", job_id)["state"]}
+
+
 @router.get("/jobs/{job_id}/revisions")
 def revisions(job_id: str, request: Request) -> dict:
     guest_job(request, job_id)
     rows = db.q("SELECT revision, edits_version, created_at, preview_state, byte_size, page_count FROM output_revisions "
                 "WHERE job_id=? ORDER BY revision DESC", job_id)
     return {"revisions": [dict(r) for r in rows]}
+
+
+DOCX_MEDIA = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def docx_response(data: bytes, filename: str) -> RawResponse:
@@ -478,7 +576,7 @@ def docx_response(data: bytes, filename: str) -> RawResponse:
 
 
 @router.get("/jobs/{job_id}/download")
-def download(job_id: str, request: Request, revision: Optional[int] = None) -> RawResponse:
+def download(job_id: str, request: Request, revision: Optional[int] = None, chunk: Optional[int] = None) -> RawResponse:
     job = guest_job(request, job_id)
     limit("download", 120, 3600, request)
     rev = revision or job["ready_revision"]
@@ -490,7 +588,7 @@ def download(job_id: str, request: Request, revision: Optional[int] = None) -> R
     data = store().get(row["docx_key"])
     if hashlib.sha256(data).hexdigest() != row["sha256"]:
         raise ApiError(500, "integrity_error", "The stored file failed its integrity check.")
-    return docx_response(data, output_filename(job["original_name"]))
+    return chunked_or_full(data, chunk, DOCX_MEDIA, output_filename(job["original_name"]))
 
 
 @router.delete("/uploads/{upload_id}")

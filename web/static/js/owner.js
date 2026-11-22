@@ -2,6 +2,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const section = document.body.dataset.section;
+  AF.api("/api/session").then((x) => { window.AF_LITE = !!x.lite; }).catch(() => {});
   const STATE_PILL = { review_ready: ["Ready", "pill-success"], failed: ["Failed", "pill-error"], deleted: ["Deleted", ""], expired: ["Expired", ""], regenerating: ["Regenerating", "pill-accent"] };
   const statePill = (s) => { const [l, c] = STATE_PILL[s] || ["Processing", "pill-accent"]; return '<span class="pill ' + c + '">' + l + "</span>"; };
 
@@ -30,6 +31,11 @@
     });
   }
   async function downloadFile(url, fallbackName) {
+    if (window.AF_LITE) {
+      const blob = await sensitive(() => AF.fetchChunked(url));
+      AF.saveBlob(blob, fallbackName);
+      return;
+    }
     await sensitive(async () => {
       const res = await fetch(url, { credentials: "same-origin" });
       if (!res.ok) { const d = await res.json().catch(() => ({})); const e = new Error((d.error && d.error.message) || "Download failed"); e.code = d.error && d.error.code; throw e; }
@@ -167,6 +173,17 @@
       const card = $("viewer-card");
       card.classList.remove("hidden");
       $("viewer-title").textContent = (kind === "src" ? "Original Word document" : "Processed Word document (revision " + man.revision + ")");
+      if (man.state === "client") {
+        $("viewer-thumbs").innerHTML = "";
+        $("viewer-pages").innerHTML = '<div class="skel" style="height:300px;width:100%"></div>';
+        try {
+          const sections = await AF.renderDocx(await AF.fetchChunked(man.file), $("viewer-pages"));
+          $("viewer-title").textContent += " · " + sections.length + " pages (drawn in browser)";
+        } catch (er) { $("viewer-pages").innerHTML = '<div class="notice err">' + AF.icon("i-alert") + "<span>" + AF.esc(er.message) + "</span></div>"; }
+        card.scrollIntoView({ behavior: "smooth" });
+        refreshActivity();
+        return;
+      }
       if (man.state !== "ready") { $("viewer-pages").innerHTML = '<div class="notice warn">' + AF.icon("i-alert") + "<span>Preview is not available (" + AF.esc(man.state) + ").</span></div>"; $("viewer-thumbs").innerHTML = ""; return; }
       $("viewer-thumbs").innerHTML = man.pages.map((p) => '<a href="#vp-' + p.n + '" style="flex:none"><img src="' + p.thumb + '" alt="Page ' + p.n + '" style="width:70px;border-radius:3px;box-shadow:var(--shadow-1)"></a>').join("");
       $("viewer-pages").innerHTML = man.pages.map((p) => '<div class="page" id="vp-' + p.n + '" style="--pw:760px"><img loading="lazy" src="' + p.src + '" alt="Page ' + p.n + '"><span class="pnum">' + p.n + "</span></div>").join("");

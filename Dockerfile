@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 10001 autofigure && mkdir -p /data && chown autofigure /data
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-full.txt .
+RUN pip install --no-cache-dir -r requirements-full.txt
 COPY autofigure ./autofigure
 COPY web ./web
 RUN python -c "from rapidocr_onnxruntime import RapidOCR; RapidOCR()"

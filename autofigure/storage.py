@@ -22,9 +22,10 @@ MAGIC = b"AFS1"
 
 
 class ObjectStore:
-    def __init__(self, root: Path, key: bytes):
+    def __init__(self, root: Path, key: bytes, in_database: bool = False):
         self.root = root
         self.aes = AESGCM(key)
+        self.in_database = in_database  # encrypted bytes kept in the object_blobs table (no persistent disk)
 
     def _path(self, key: str) -> Path:
         if not key or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for c in key):
@@ -34,12 +35,15 @@ class ObjectStore:
     def put(self, data: bytes, kind: str, upload_id: Optional[str]) -> str:
         key = f"{kind[:4]}-{secrets.token_hex(20)}".lower()
         p = self._path(key)
-        p.parent.mkdir(parents=True, exist_ok=True)
         nonce = secrets.token_bytes(12)
         blob = MAGIC + nonce + self.aes.encrypt(nonce, data, key.encode())
-        tmp = p.with_suffix(".tmp")
-        tmp.write_bytes(blob)
-        os.replace(tmp, p)
+        if self.in_database:
+            db.ex("INSERT INTO object_blobs(key, data) VALUES (?,?)", key, blob)
+        else:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_suffix(".tmp")
+            tmp.write_bytes(blob)
+            os.replace(tmp, p)
         db.ex("INSERT INTO objects(key, upload_id, kind, byte_size, sha256, created_at) VALUES (?,?,?,?,?,?)",
               key, upload_id, kind, len(data), hashlib.sha256(data).hexdigest(), db.now())
         return key
@@ -48,7 +52,13 @@ class ObjectStore:
         row = db.q1("SELECT deleted_at FROM objects WHERE key=?", key)
         if row is None or row["deleted_at"] is not None:
             raise FileNotFoundError(key)
-        blob = self._path(key).read_bytes()
+        if self.in_database:
+            r = db.q1("SELECT data FROM object_blobs WHERE key=?", key)
+            if r is None:
+                raise FileNotFoundError(key)
+            blob = bytes(r["data"])
+        else:
+            blob = self._path(key).read_bytes()
         if not blob.startswith(MAGIC):
             raise ValueError("corrupt_object")
         return self.aes.decrypt(blob[4:16], blob[16:], key.encode())
@@ -57,11 +67,18 @@ class ObjectStore:
         if not key:
             return False
         row = db.q1("SELECT deleted_at FROM objects WHERE key=?", key)
-        return bool(row) and row["deleted_at"] is None and self._path(key).exists()
+        if not row or row["deleted_at"] is not None:
+            return False
+        if self.in_database:
+            return db.q1("SELECT 1 FROM object_blobs WHERE key=?", key) is not None
+        return self._path(key).exists()
 
     def delete(self, key: str) -> None:
         try:
-            self._path(key).unlink(missing_ok=True)
+            if self.in_database:
+                db.ex("DELETE FROM object_blobs WHERE key=?", key)
+            else:
+                self._path(key).unlink(missing_ok=True)
         finally:
             db.ex("UPDATE objects SET deleted_at=? WHERE key=? AND deleted_at IS NULL", db.now(), key)
 
@@ -82,6 +99,7 @@ _store: Optional[ObjectStore] = None
 def store() -> ObjectStore:
     global _store
     cfg = get_config()
-    if _store is None or _store.root != cfg.objects_dir:
-        _store = ObjectStore(cfg.objects_dir, cfg.encryption_key)
+    in_db = cfg.storage_backend == "database"
+    if _store is None or _store.root != cfg.objects_dir or _store.in_database != in_db:
+        _store = ObjectStore(cfg.objects_dir, cfg.encryption_key, in_db)
     return _store

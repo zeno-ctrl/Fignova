@@ -497,3 +497,11 @@ table.data a { font-weight: 600; text-decoration: none; }
 .mistake .now { color: var(--success); font-weight: 650; font-size: .92rem; }
 .mistake .why { font-size: .8rem; color: var(--muted); }
 @media (max-width: 700px) { .mistake { grid-template-columns: 56px 1fr; } .mistake > .row { grid-column: 1 / -1; } }
+
+/* in-browser Word rendering (serverless mode) */
+.client-doc { width: max-content; max-width: none; }
+.client-doc .docx-wrapper { background: transparent !important; padding: 0 !important; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.client-doc section.docx { box-shadow: var(--shadow-2); margin: 0 !important; color: #111; }
+.hl-client { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; background: color-mix(in srgb, #19bbd2 12%, transparent); cursor: pointer; }
+.hl-client[data-selected="true"] { outline-color: var(--violet); background: color-mix(in srgb, #6f55f2 16%, transparent); }
+.hl-client[data-review="true"] { outline-style: dashed; outline-color: var(--warning); }

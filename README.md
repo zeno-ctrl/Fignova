@@ -39,8 +39,8 @@ python -m autofigure check
 python -m autofigure serve --with-worker
 ```
 
-Open http://localhost:8000. **Hosting:** see [`DEPLOY.md`](DEPLOY.md). Vercel cannot run this app; use Render
-(`render.yaml`), Railway, Fly.io or a VPS. In production run the web process and `python -m autofigure worker` separately
+Open http://localhost:8000. **Hosting:** see [`DEPLOY.md`](DEPLOY.md): Vercel + Neon (serverless lite mode), a home laptop with
+Cloudflare Tunnel, Render/Railway/Fly.io or any Docker host. In production run the web process and `python -m autofigure worker` separately
 (see `docker-compose.yml`), behind HTTPS (`deploy/nginx.conf`), with `AUTOFIGURE_SECURE_COOKIES=true`.
 
 ### Tests

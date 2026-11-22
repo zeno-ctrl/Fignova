@@ -208,37 +208,140 @@ MIGRATIONS: list[str] = [
     """,
 ]
 
+# Migration 2 — objects stored in the database (used on hosts without a persistent disk, e.g. Vercel + Neon)
+MIGRATIONS.append("""
+    CREATE TABLE object_blobs (
+        key TEXT PRIMARY KEY,
+        data BLOB NOT NULL
+    );
+    CREATE TABLE upload_chunks (
+        token TEXT NOT NULL,
+        idx INTEGER NOT NULL,
+        data BLOB NOT NULL,
+        created_at REAL NOT NULL,
+        PRIMARY KEY (token, idx)
+    );
+""")
+
 _local = threading.local()
 
 
-def connect() -> sqlite3.Connection:
+def database_url() -> str | None:
+    import os
+    return os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or None
+
+
+def is_postgres() -> bool:
+    url = database_url()
+    return bool(url) and url.startswith(("postgres://", "postgresql://"))
+
+
+class Row(dict):
+    """Row usable by column name (row["id"]) and by position (row[0]), like sqlite3.Row."""
+
+    def __init__(self, cols: list[str], values: tuple):
+        super().__init__(zip(cols, values))
+        self._values = values
+
+    def __getitem__(self, k):
+        if isinstance(k, int):
+            return self._values[k]
+        return super().__getitem__(k)
+
+    def keys(self):
+        return list(super().keys())
+
+
+class _PgCursor:
+    def __init__(self, cur):
+        self._cur = cur
+
+    def _cols(self):
+        return [d.name for d in self._cur.description] if self._cur.description else []
+
+    def fetchone(self):
+        r = self._cur.fetchone()
+        return Row(self._cols(), r) if r is not None else None
+
+    def fetchall(self):
+        cols = self._cols()
+        return [Row(cols, r) for r in self._cur.fetchall()]
+
+    @property
+    def lastrowid(self):
+        return None
+
+
+class PgConn:
+    """Minimal sqlite3-compatible facade over psycopg (autocommit; explicit BEGIN/COMMIT in tx())."""
+
+    def __init__(self, url: str):
+        import psycopg
+        self._c = psycopg.connect(url, autocommit=True, prepare_threshold=None)
+
+    @staticmethod
+    def _sql(sql: str) -> str:
+        sql = sql.replace("BEGIN IMMEDIATE", "BEGIN")
+        return sql.replace("%", "%%").replace("?", "%s")
+
+    def execute(self, sql: str, params=()):
+        cur = self._c.cursor()
+        cur.execute(self._sql(sql), tuple(bytes(p) if isinstance(p, memoryview) else p for p in params) if params else None)
+        return _PgCursor(cur)
+
+    def executescript(self, script: str):
+        self._c.execute(script)
+
+
+def _pg_schema(sql: str) -> str:
+    import re as _re
+    sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY")
+    sql = _re.sub(r"\bREAL\b", "DOUBLE PRECISION", sql)
+    return _re.sub(r"\bBLOB\b", "BYTEA", sql)
+
+
+def connect():
     cfg = get_config()
+    key = database_url() or str(cfg.db_path)
     conn = getattr(_local, "conn", None)
-    if conn is not None and getattr(_local, "path", None) == str(cfg.db_path):
+    if conn is not None and getattr(_local, "path", None) == key:
         return conn
-    conn = sqlite3.connect(cfg.db_path, timeout=30, isolation_level=None, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=30000")
-    _local.conn, _local.path = conn, str(cfg.db_path)
+    if is_postgres():
+        conn = PgConn(database_url())
+    else:
+        conn = sqlite3.connect(cfg.db_path, timeout=30, isolation_level=None, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=30000")
+    _local.conn, _local.path = conn, key
     return conn
 
 
 def migrate() -> int:
     conn = connect()
-    conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-    row = conn.execute("SELECT version FROM schema_version").fetchone()
-    cur = row["version"] if row else 0
-    if row is None:
-        conn.execute("INSERT INTO schema_version VALUES (0)")
-    for i, sql in enumerate(MIGRATIONS[cur:], start=cur + 1):
-        conn.executescript("BEGIN;" + sql + f"; UPDATE schema_version SET version={i}; COMMIT;")
+    pg = is_postgres()
+    if pg:
+        conn.execute("SELECT pg_advisory_lock(424242)")  # concurrent cold starts migrate one at a time
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+        row = conn.execute("SELECT version FROM schema_version").fetchone()
+        cur = row["version"] if row else 0
+        if row is None:
+            conn.execute("INSERT INTO schema_version VALUES (0)")
+        for i, sql in enumerate(MIGRATIONS[cur:], start=cur + 1):
+            if pg:
+                conn.executescript("BEGIN;" + _pg_schema(sql) + f"; UPDATE schema_version SET version={i}; COMMIT;")
+            else:
+                conn.executescript("BEGIN;" + sql + f"; UPDATE schema_version SET version={i}; COMMIT;")
+    finally:
+        if pg:
+            conn.execute("SELECT pg_advisory_unlock(424242)")
     return len(MIGRATIONS)
 
 
 @contextmanager
-def tx() -> Iterator[sqlite3.Connection]:
+def tx() -> Iterator[Any]:
     conn = connect()
     conn.execute("BEGIN IMMEDIATE")
     try:
@@ -249,15 +352,15 @@ def tx() -> Iterator[sqlite3.Connection]:
         raise
 
 
-def q(sql: str, *args: Any) -> list[sqlite3.Row]:
+def q(sql: str, *args: Any) -> list:
     return connect().execute(sql, args).fetchall()
 
 
-def q1(sql: str, *args: Any) -> sqlite3.Row | None:
+def q1(sql: str, *args: Any):
     return connect().execute(sql, args).fetchone()
 
 
-def ex(sql: str, *args: Any) -> int:
+def ex(sql: str, *args: Any):
     cur = connect().execute(sql, args)
     return cur.lastrowid
 

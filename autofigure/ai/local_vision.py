@@ -30,6 +30,9 @@ _OCR_FAILED = False
 
 def _ocr_engine():
     global _OCR, _OCR_FAILED
+    import os
+    if os.environ.get("AUTOFIGURE_DISABLE_OCR"):
+        return None
     if _OCR is None and not _OCR_FAILED:
         try:
             from rapidocr_onnxruntime import RapidOCR
@@ -98,6 +101,14 @@ def known_command(text: str) -> Optional[str]:
         if key in squashed:
             return cmd
     return None
+
+
+def _terminal_like(im: Image.Image) -> bool:
+    small = im.convert("L").resize((200, max(1, int(200 * im.height / im.width))))
+    px = list(small.getdata())
+    dark = sum(1 for v in px if v < 60) / len(px)
+    bright = sum(1 for v in px if v > 110) / len(px)  # downscaled glyphs are grey, not white
+    return dark > 0.7 and 0.002 < bright < 0.2  # mostly black with sparse light text
 
 
 def _dark(im: Image.Image) -> bool:
@@ -315,6 +326,9 @@ def analyse(image_jpeg: Optional[bytes]) -> VisionResult:
         if sum(1 for c in rows.values() if c >= 3) >= 3:
             return VisionResult("Table", "table", "low", ev + ["grid_text"], texts)
 
+    if not lines and _dark(im) and _terminal_like(im):
+        # no OCR available (serverless build): a dark window with small light glyphs is a terminal/console
+        return VisionResult("Command-line output", "cli", "low", ev + ["dark_terminal"], texts)
     if _photo_like(im):
         return VisionResult(None, "photograph", "low", ev + ["continuous_tone"], texts)
     return VisionResult(None, "illustration" if sat > 0.08 else "other", "low", ev, texts)

@@ -249,7 +249,7 @@ def run_analyze(job_id: str) -> None:
     set_state(job_id, "structure_analysis")
     set_state(job_id, "page_mapping")
     try:
-        ar = analyze(original, cfg.render_timeout)
+        ar = analyze(original, cfg.render_timeout, render=not cfg.lite)
     except RenderError as e:
         raise JobError(str(e), retryable=str(e) == "render_timeout") from e
     a = ar.analysis
@@ -258,7 +258,11 @@ def run_analyze(job_id: str) -> None:
     if a.page_count and a.page_count > svc["max_pages"]:
         raise JobError("too_many_pages")
     # Source preview from the untouched original render (used for compare + owner viewer).
-    if ar.original_pdf:
+    if cfg.lite:
+        db.ex("INSERT INTO source_previews(upload_id, state, manifest, created_at) VALUES (?,?,?,?) ON CONFLICT(upload_id) "
+              "DO UPDATE SET state=excluded.state, manifest=excluded.manifest, created_at=excluded.created_at",
+              up["id"], "client", None, db.now())
+    elif ar.original_pdf:
         try:
             pages, thumbs = rasterize(ar.original_pdf)
             stored = _store_preview(up["id"], pages, thumbs, "s")
@@ -267,10 +271,12 @@ def run_analyze(job_id: str) -> None:
             man = {"page_count": len(layout), "pages": [{"n": p.page, "w": p.width, "h": p.height,
                                                           "obj": s["page"], "thumb": s["thumb"]}
                                                          for p, s in zip(layout, stored)]}
-            db.ex("INSERT OR REPLACE INTO source_previews(upload_id, state, manifest, created_at) VALUES (?,?,?,?)",
+            db.ex("INSERT INTO source_previews(upload_id, state, manifest, created_at) VALUES (?,?,?,?) ON CONFLICT(upload_id) "
+                  "DO UPDATE SET state=excluded.state, manifest=excluded.manifest, created_at=excluded.created_at",
                   up["id"], "ready", db.jdump(man), db.now())
         except RenderError:
-            db.ex("INSERT OR REPLACE INTO source_previews(upload_id, state, manifest, created_at) VALUES (?,?,?,?)",
+            db.ex("INSERT INTO source_previews(upload_id, state, manifest, created_at) VALUES (?,?,?,?) ON CONFLICT(upload_id) "
+                  "DO UPDATE SET state=excluded.state, manifest=excluded.manifest, created_at=excluded.created_at",
                   up["id"], "failed", None, db.now())
     set_state(job_id, "figure_detection", f"{len(a.figures)} visual objects")
     thumbs: dict[str, str] = {}
@@ -321,6 +327,14 @@ def _build_and_render(job_id: str, up, original: bytes, figures: list[FigureOccu
     if first:
         set_state(job_id, "preview_rendering")
     labels = {f.figure_id: f.label for f in figures if f.eligible and f.label}
+    if cfg.lite:
+        # serverless: no renderer — the browser draws the exact .docx revision itself
+        db.ex("UPDATE output_revisions SET preview_state='ready', preview_manifest=? WHERE job_id=? AND revision=?",
+              db.jdump({"client": True, "labels": labels}), job_id, revision)
+        db.ex("UPDATE jobs SET ready_revision=?, rendered_edits_version=?, summary=?, finished_at=? WHERE id=?",
+              revision, ev, db.jdump(summary), db.now(), job_id)
+        set_state(job_id, "review_ready", f"revision {revision}")
+        return
     try:
         pv = render_preview(rev.docx, labels, settings.prefix, cfg.render_timeout)
     except RenderError as e:
@@ -409,7 +423,12 @@ def delete_upload_content(upload_id: str, actor: str, state: str) -> int:
             c.execute("UPDATE jobs SET state=?, updated_at=? WHERE id=?",
                       ("expired" if state == "expired" else "deleted", db.now(), j["id"]))
             c.execute("UPDATE output_revisions SET preview_state='deleted', docx_key=NULL, preview_manifest=NULL WHERE job_id=?", (j["id"],))
-            c.execute("UPDATE figures SET thumb_key=NULL, caption_text=NULL, data=json_set(data,'$.caption_text','', '$.nearby_text','', '$.alt_text', NULL) WHERE job_id=?", (j["id"],))
+            for fr in c.execute("SELECT id, data FROM figures WHERE job_id=?", (j["id"],)).fetchall():
+                d = db.jload(fr["data"], {})
+                d.update({"caption_text": "", "nearby_text": "", "preceding_text": "", "own_text": "", "alt_text": None,
+                          "correction": "", "alternatives": [], "mistakes": []})
+                c.execute("UPDATE figures SET thumb_key=NULL, caption_text=NULL, data=? WHERE job_id=? AND id=?",
+                          (db.jdump(d), j["id"], fr["id"]))
             c.execute("DELETE FROM caption_revisions WHERE job_id=?", (j["id"],))
         c.execute("UPDATE source_previews SET state='deleted', manifest=NULL WHERE upload_id=?", (upload_id,))
     return n
@@ -423,6 +442,7 @@ def retention_sweep() -> int:
     db.ex("DELETE FROM guest_sessions WHERE expires_at < ? AND id NOT IN (SELECT guest_session_id FROM uploads "
           "WHERE deletion_state='active')", db.now())
     db.ex("DELETE FROM owner_sessions WHERE expires_at < ?", db.now() - 86400 * 7)
+    db.ex("DELETE FROM upload_chunks WHERE created_at < ?", db.now() - 86400)
     return len(rows)
 
 
@@ -434,6 +454,19 @@ def recover_stalled() -> None:
         pending = db.q1("SELECT 1 FROM queue WHERE state IN ('ready','leased') AND payload LIKE ?", f'%"{j["id"]}"%')
         if not pending:
             _mark_failed(j["id"], "stalled", "analyze")
+
+
+def run_job_tasks(job_id: str, max_seconds: float = 240) -> int:
+    """Serverless mode: process this job's pending tasks inside the current request."""
+    deadline = time.time() + max_seconds
+    done = 0
+    while time.time() < deadline:
+        task = queue.lease(job_id=job_id)
+        if task is None:
+            break
+        handle_task(task)
+        done += 1
+    return done
 
 
 def worker_loop(stop_after_idle: Optional[float] = None, poll: float = 0.5) -> None:

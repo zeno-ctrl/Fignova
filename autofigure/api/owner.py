@@ -26,7 +26,8 @@ from ..security import (audit, hash_password, new_token, new_totp_secret, otpaut
 from ..storage import store
 from .common import (OWNER_ABSOLUTE, OWNER_COOKIE, ApiError, check_csrf, client_ip, limit, not_found, require_owner,
                      require_step_up, set_cookie, owner_session)
-from .public import docx_response, figure_payload, job_payload, page_object, preview_manifest_for
+from .public import (DOCX_MEDIA, chunked_or_full, docx_response, figure_payload, file_bytes, job_payload, page_object,
+                     preview_manifest_for)
 
 router = APIRouter(prefix="/api/owner")
 TOTP_AAD = b"owner-totp"
@@ -40,6 +41,39 @@ def _qr_svg(data: str) -> str:
     buf = io.BytesIO()
     img.save(buf)
     return buf.getvalue().decode()
+
+
+# --- first-time setup without a command line (serverless hosts) -------------
+class Bootstrap(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    setup_key: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/bootstrap")
+def bootstrap(body: Bootstrap, request: Request) -> dict:
+    """Create the one-time owner invitation from the browser. Requires AUTOFIGURE_OWNER_SETUP_KEY (a secret the
+    operator sets on the host) and only works while no owner has been enrolled."""
+    import os
+    check_csrf(request)
+    limit("owner-bootstrap", 5, 3600, request)
+    expected = os.environ.get("AUTOFIGURE_OWNER_SETUP_KEY", "")
+    cfg = get_config()
+    if not expected or len(expected) < 16 or not hmac.compare_digest(expected, body.setup_key) or not cfg.owner_email:
+        security_event("owner_bootstrap_rejected", None, client_ip(request))
+        raise ApiError(403, "bootstrap_denied", "Setup is not available. Check the setup key and the owner email setting.")
+    acct = db.q1("SELECT status FROM owner_accounts WHERE id=1")
+    if acct and acct["status"] == "active":
+        raise ApiError(409, "already_enrolled", "The owner account is already set up. Sign in instead.")
+    if not acct:
+        db.ex("INSERT INTO owner_accounts(id, principal_id, email, display_name, status, created_at, updated_at) "
+              "VALUES (1,?,?,?,?,?,?)", "own_" + secrets.token_hex(16), cfg.owner_email, cfg.owner_display_name,
+              "invited", db.now(), db.now())
+    tok = new_token()
+    db.ex("DELETE FROM owner_invites WHERE used_at IS NULL")
+    db.ex("INSERT INTO owner_invites(token_hash, email, expires_at) VALUES (?,?,?)", token_hash(tok), cfg.owner_email,
+          db.now() + 1800)
+    audit("operator", "owner_invite_created", None, {"via": "setup_page"}, client_ip(request))
+    return {"enroll_url": f"/owner/enroll#token={tok}"}
 
 
 # --- enrollment (one-time invitation created by the operator CLI) -----------
@@ -349,8 +383,20 @@ def owner_page(upload_id: str, kind: str, rev: str, n: int, request: Request, th
                        headers={"Cache-Control": "no-store"})
 
 
+@router.get("/uploads/{upload_id}/file")
+def owner_file(upload_id: str, request: Request, kind: str = "source", revision: Optional[int] = None,
+               chunk: Optional[int] = None) -> RawResponse:
+    """Word bytes for the owner's in-browser preview (serverless mode); opening is audited via /preview."""
+    require_owner(request)
+    up = _owner_upload(upload_id)
+    if up["deletion_state"] != "active" or kind not in ("source", "output"):
+        raise not_found()
+    return chunked_or_full(file_bytes(up["job_id"], kind, revision), chunk if chunk is not None else 0, DOCX_MEDIA)
+
+
 @router.get("/uploads/{upload_id}/download")
-def owner_download(upload_id: str, request: Request, version: str = "processed", revision: Optional[int] = None) -> RawResponse:
+def owner_download(upload_id: str, request: Request, version: str = "processed", revision: Optional[int] = None,
+                   chunk: Optional[int] = None) -> RawResponse:
     s = require_owner(request)
     require_step_up(s)
     up = _owner_upload(upload_id)
@@ -360,16 +406,18 @@ def owner_download(upload_id: str, request: Request, version: str = "processed",
         data = store().get(up["object_key"])
         if hashlib.sha256(data).hexdigest() != up["sha256"]:
             raise ApiError(500, "integrity_error", "Stored original failed its integrity check.")
-        audit("owner", "original_downloaded", upload_id, None, client_ip(request))
-        return docx_response(data, up["original_name"])
+        if not chunk:
+            audit("owner", "original_downloaded", upload_id, None, client_ip(request))
+        return chunked_or_full(data, chunk, DOCX_MEDIA, up["original_name"])
     job = db.q1("SELECT ready_revision FROM jobs WHERE id=?", up["job_id"])
     rev = revision or (job["ready_revision"] if job else None)
     row = db.q1("SELECT docx_key FROM output_revisions WHERE job_id=? AND revision=? AND preview_state='ready'",
                 up["job_id"], rev)
     if not row or not row["docx_key"]:
         raise ApiError(409, "no_output", "There is no verified processed version for this upload.")
-    audit("owner", "output_downloaded", upload_id, {"revision": rev}, client_ip(request))
-    return docx_response(store().get(row["docx_key"]), output_filename(up["original_name"]))
+    if not chunk:
+        audit("owner", "output_downloaded", upload_id, {"revision": rev}, client_ip(request))
+    return chunked_or_full(store().get(row["docx_key"]), chunk, DOCX_MEDIA, output_filename(up["original_name"]))
 
 
 @router.delete("/uploads/{upload_id}")

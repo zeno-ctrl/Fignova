@@ -55,8 +55,11 @@ class PageMapResult:
     warnings: list[str]
 
 
-def map_pages(original: bytes, figures: list[FigureOccurrence], timeout: int = 180) -> PageMapResult:
+def map_pages(original: bytes, figures: list[FigureOccurrence], timeout: int = 180, render: bool = True) -> PageMapResult:
     warnings: list[str] = []
+    if not render:  # serverless host: no renderer — use Word's saved layout, page breaks and a layout estimate
+        _fallback_explicit_breaks(original, figures)
+        return PageMapResult(None, None, "word_layout_estimate", [])
     try:
         original_pdf = docx_to_pdf(original, timeout)
         probe_pdf = docx_to_pdf(build_probe(original), timeout)
@@ -100,17 +103,84 @@ def map_pages(original: bytes, figures: list[FigureOccurrence], timeout: int = 1
 
 
 def _fallback_explicit_breaks(original: bytes, figures: list[FigureOccurrence]) -> None:
-    """Without a renderer only explicit breaks are known; nothing is marked confident."""
+    """Page assignment without a renderer (serverless hosts).
+
+    Evidence, strongest first:
+    1. ``w:lastRenderedPageBreak`` — where Microsoft Word itself broke pages when the file was last saved.
+    2. Explicit breaks (page break, page-break-before, next-page section break): anything after one is
+       certainly not on page 1.
+    3. A layout estimate from paragraph lengths, image heights and the page size/margins.
+    Only page 1 matters for the exclusion rule; borderline cases are left for the user to confirm.
+    """
+    from .locator import _ancestor
+    from .ooxml import NS, paragraph_text
     pkg = DocxPackage.from_bytes(original)
     root = pkg.xml(pkg.main_part)
-    page = 1
-    breaks_at: list[int] = []
-    for order, el in enumerate(root.iter()):
-        if (el.tag == W + "br" and el.get(W + "type") == "page") or el.tag == W + "lastRenderedPageBreak" \
-                or el.tag == W + "pageBreakBefore" or (el.tag == W + "sectPr" and el.getparent().tag == W + "pPr"):
-            breaks_at.append(order)
+    body = root.find("w:body", NS)
+    lrpb: list[int] = []
+    explicit: list[int] = []
+    heights: list[tuple[int, float]] = []  # (order, estimated height in cm) per block
+    first_heading: Optional[int] = None
+    for order, el in enumerate(body.iter()):
+        tag = el.tag
+        if tag == W + "lastRenderedPageBreak":
+            lrpb.append(order)
+        elif tag == W + "br" and el.get(W + "type") == "page":
+            explicit.append(order)
+        elif tag == W + "pageBreakBefore" and el.get(W + "val") not in ("0", "false"):
+            explicit.append(order)
+        elif tag == W + "sectPr" and el.getparent() is not None and el.getparent().tag == W + "pPr":
+            t = el.find("w:type", NS)
+            if t is None or t.get(W + "val") != "continuous":
+                explicit.append(order + 1)  # the break follows this paragraph
+        elif tag == W + "p" and _ancestor(el, W + "txbxContent") is None:
+            txt = paragraph_text(el).strip()
+            style = el.find("w:pPr/w:pStyle", NS)
+            is_heading = style is not None and (style.get(W + "val") or "").lower().startswith(("heading", "title"))
+            if is_heading and first_heading is None and txt:
+                first_heading = order
+            lines = max(1, -(-len(txt) // 90)) if txt else 1
+            heights.append((order, lines * 0.55 + (0.9 if is_heading else 0.25)))
+    # usable page height from the last section properties
+    usable = 24.7
+    sect = body.find("w:sectPr", NS)
+    if sect is not None:
+        pg, mar = sect.find("w:pgSz", NS), sect.find("w:pgMar", NS)
+        try:
+            usable = (int(pg.get(W + "h")) - int(mar.get(W + "top")) - int(mar.get(W + "bottom"))) / 567.0
+        except (AttributeError, TypeError, ValueError):
+            pass
+    fig_h = {f.order: (f.height_cm or 5.0) + 0.4 for f in figures}
+
+    def top_of(order: int) -> float:
+        y = sum(h for o, h in heights if o < order)
+        return y + sum(h for o, h in fig_h.items() if o < order)
+
     for fig in figures:
-        before = sum(1 for b in breaks_at if b < fig.order)
-        fig.page = page + before
-        fig.page_confident = False
-        fig.page_evidence = "Estimated from explicit page breaks only (renderer unavailable)"
+        if fig.kind in ("anchor", "vml_floating"):
+            fig.warnings.append("floating_image")
+        if lrpb:
+            fig.page = 1 + sum(1 for b in lrpb if b < fig.order)
+            fig.page_confident = True
+            fig.page_evidence = f"Page {fig.page} according to Word's saved page layout"
+            continue
+        before = sum(1 for b in explicit if b < fig.order)
+        if before:
+            fig.page = 1 + before
+            fig.page_confident = True
+            fig.page_evidence = f"After {before} explicit page break(s) — not on page 1"
+            continue
+        top = top_of(fig.order)
+        bottom = top + fig_h[fig.order]
+        if explicit and (first_heading is None or first_heading > fig.order):
+            fig.page, fig.page_confident = 1, True
+            fig.page_evidence = "Before the first page break and before any heading — cover page"
+        elif top > usable * 1.1:
+            fig.page, fig.page_confident = 2 + int((top - usable) // usable), True
+            fig.page_evidence = f"Estimated from layout (~{top:.0f} cm down the document, page height {usable:.0f} cm)"
+        elif bottom < usable * 0.85 and (first_heading is None or first_heading > fig.order):
+            fig.page, fig.page_confident = 1, True
+            fig.page_evidence = "Estimated from layout: on the first page"
+        else:
+            fig.page, fig.page_confident = (1 if top < usable else 2), False
+            fig.page_evidence = "Estimated from layout — near the first page; please confirm"

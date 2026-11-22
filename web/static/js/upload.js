@@ -11,7 +11,8 @@
   const submit = document.getElementById("upload-submit");
   let file = null;
   let maxMb = 50;
-  AF.api("/api/session").then((s) => { maxMb = s.limits.max_upload_mb; if (s.maintenance) showError(s.maintenance_message || "Uploads are paused for maintenance."); }).catch(() => {});
+  let lite = false, chunkBytes = 3 * 1048576;
+  AF.api("/api/session").then((s) => { maxMb = s.limits.max_upload_mb; lite = !!s.lite; chunkBytes = s.chunk_bytes || chunkBytes; if (s.maintenance) showError(s.maintenance_message || "Uploads are paused for maintenance."); }).catch(() => {});
 
   const SIGS = [
     [[0x25, 0x50, 0x44, 0x46], "This is a PDF. Please upload a Microsoft Word (.docx) document."],
@@ -83,6 +84,7 @@
     e.preventDefault();
     if (!file) { showError("Choose a Word (.docx) file first."); input.focus(); return; }
     if (!document.getElementById("consent").checked) { showError("Please confirm you have read how your document is stored and who can access it."); document.getElementById("consent").focus(); return; }
+    if (lite) { chunkedUpload(); return; }
     const fd = new FormData();
     fd.append("file", file, file.name);
     fd.append("consent", "yes");
@@ -115,6 +117,35 @@
     xhr.onerror = () => { AF.busy(submit, false); bar.classList.add("hidden"); showError("Network problem — your file was not uploaded. Try again."); };
     xhr.send(fd);
   });
+
+  async function chunkedUpload() {
+    bar.classList.remove("hidden");
+    AF.busy(submit, true, "Uploading…");
+    try {
+      const token = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)).replace(/[^a-z0-9-]/gi, "");
+      const count = Math.max(1, Math.ceil(file.size / chunkBytes));
+      for (let i = 0; i < count; i++) {
+        const part = file.slice(i * chunkBytes, (i + 1) * chunkBytes);
+        const res = await fetch("/api/uploads/chunk", { method: "POST", credentials: "same-origin", body: part,
+          headers: { "X-CSRF-Token": AF.csrf(), "X-Upload-Token": token, "X-Chunk-Index": String(i), "Content-Type": "application/octet-stream" } });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error((d.error && d.error.message) || "Upload failed."); }
+        const done = Math.min(file.size, (i + 1) * chunkBytes);
+        bar.firstElementChild.style.width = Math.round((done / file.size) * 100) + "%";
+        status.textContent = "Uploading " + Math.round((done / file.size) * 100) + "% (" + AF.bytes(done) + " of " + AF.bytes(file.size) + ")";
+      }
+      const fd = new FormData();
+      fd.append("chunk_token", token); fd.append("chunk_count", String(count)); fd.append("filename", file.name);
+      fd.append("consent", "yes"); fd.append("settings", JSON.stringify(settings()));
+      status.textContent = "Checking your Word file…";
+      const res = await fetch("/api/uploads", { method: "POST", credentials: "same-origin", body: fd, headers: { "X-CSRF-Token": AF.csrf() } });
+      const data = await res.json().catch(() => null);
+      if (res.status !== 202 || !data) throw new Error((data && data.error && data.error.message) || "Upload failed. Please try again.");
+      status.textContent = "Upload stored securely. Opening your document…";
+      location.href = data.review_url;
+    } catch (err) {
+      AF.busy(submit, false); bar.classList.add("hidden"); status.textContent = ""; showError(err.message);
+    }
+  }
 
   // workspace list
   const list = document.getElementById("my-uploads");

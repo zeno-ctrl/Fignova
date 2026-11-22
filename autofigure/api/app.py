@@ -132,6 +132,10 @@ def create_app() -> FastAPI:
             return RedirectResponse("/owner/dashboard", status_code=303)
         return render(request, "owner/login.html", {"title": "Owner sign-in"})
 
+    @app.get("/owner/setup", response_class=HTMLResponse)
+    async def owner_setup(request: Request):
+        return render(request, "owner/setup.html", {"title": "Owner setup"})
+
     @app.get("/owner/enroll", response_class=HTMLResponse)
     async def owner_enroll(request: Request):
         return render(request, "owner/enroll.html", {"title": "Owner enrollment"})
@@ -169,6 +173,18 @@ def create_app() -> FastAPI:
         from ..engine.render import soffice_path
         db.q1("SELECT 1")
         return {"ok": True, "renderer": bool(soffice_path()), "version": cfg.version}
+
+    @app.get("/api/cron/retention")
+    async def cron_retention(request: Request):
+        """Vercel Cron entry point (Authorization: Bearer $CRON_SECRET)."""
+        import hmac, os
+        from ..pipeline import recover_stalled, retention_sweep
+        secret = os.environ.get("CRON_SECRET", "")
+        if not secret or not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {secret}"):
+            return error_response(request, 401, "unauthorized", "Unauthorized.")
+        n = retention_sweep()
+        recover_stalled()
+        return {"expired": n}
 
     @app.get("/robots.txt")
     async def robots():
