@@ -1,0 +1,4 @@
+{
+  "//": "AutoFigure Studio cannot run on Vercel: it needs LibreOffice, a background worker and a persistent disk. Deploy the Dockerfile on Render (render.yaml), Railway or Fly.io instead. See DEPLOY.md.",
+  "rewrites": [{ "source": "/(.*)", "destination": "/DEPLOY.html" }]
+}

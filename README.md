@@ -39,7 +39,8 @@ python -m autofigure check
 python -m autofigure serve --with-worker
 ```
 
-Open http://localhost:8000. In production run the web process and `python -m autofigure worker` separately
+Open http://localhost:8000. **Hosting:** see [`DEPLOY.md`](DEPLOY.md). Vercel cannot run this app; use Render
+(`render.yaml`), Railway, Fly.io or a VPS. In production run the web process and `python -m autofigure worker` separately
 (see `docker-compose.yml`), behind HTTPS (`deploy/nginx.conf`), with `AUTOFIGURE_SECURE_COOKIES=true`.
 
 ### Tests
@@ -48,7 +49,7 @@ Open http://localhost:8000. In production run the web process and `python -m aut
 python -m pytest -q
 ```
 
-60 tests: numbering invariants, 16 synthetic Word fixtures through the real renderer, OOXML preservation,
+69 tests: numbering invariants, 16 synthetic Word fixtures through the real renderer, OOXML preservation,
 idempotency, validation of hostile files, AutoFigure AI, and end-to-end API/authorization tests including the
 spec's acceptance scenarios A–J.
 
@@ -70,20 +71,29 @@ Rotate MFA from **Security**.
 
 AutoFigure AI is this site's own captioning engine — an orchestration layer, not a new foundation model:
 
-* **Built in, offline:** reads how the author introduced each figure (“The network topology used in the lab is shown
-  next.” → *Network topology used in the lab*), uses real author alt text, and otherwise gives a neutral type word
-  (Screenshot / Chart or diagram / Photograph) marked **needs review**.
+* **AutoFigure Vision (built in, offline, free):** OCR (RapidOCR, models bundled in the pip package) reads the text
+  inside each image and pixel analysis detects bar charts, terminals and UI screenshots. Domain rules for coursework
+  turn that evidence into grounded captions, e.g. *Network topology with 7 switches and a router*,
+  *Output of “show ip route” showing the routing table*, *Screenshot of interface status with VLAN assignments*,
+  *Login page with username and password fields*. It never guesses what a photo shows; photos without context are
+  flagged for review.
+* **Document context:** reads how the author introduced each figure (“The network topology used in the lab is shown
+  next.” → *Network topology used in the lab*) and real author alt text. When vision and the author's sentence
+  agree, confidence is high; when they disagree the other wording is offered as a second opinion.
 * **Vision models (optional):** set `ANTHROPIC_API_KEY` (Claude, default model `claude-opus-5-5`) and/or
   `OPENAI_API_KEY` (ChatGPT, `AUTOFIGURE_OPENAI_MODEL`). With both, captions are cross-checked: agreement raises
   confidence; disagreement is flagged with a one-click “second opinion”.
-* **Mistakes in existing captions:** wrong numbers, wrong label format and duplicate numbers are always detected.
-  With a vision model, descriptions that don't match the picture (a cat photo captioned “Figure 1.1 dog”) are
+* **Mistakes in existing captions:** wrong numbers, wrong label format and duplicate numbers are always detected;
+  offline, a caption naming the wrong kind of image (“Bar chart …” under a network topology) is caught too. With a vision model, descriptions that don't match the picture (a cat photo captioned “Figure 1.1 dog”) are
   flagged with a proposed fix. **Correct all** rewrites them and regenerates the file; **Keep mine** dismisses.
 * Uploaded text is passed to models only as delimited reference data (prompt-injection resistant); outputs are
   schema-validated and sanitised. The privacy page and upload card name exactly which providers receive images.
 
-It does **not** see images better than Claude or ChatGPT; without a key, description quality is limited to what the
-document itself says.
+Offline it cannot describe the *content of photographs* (a cat vs a dog); that needs Claude or ChatGPT. It is not a
+model that sees better than them; its strength is cross-checking several grounded sources and flagging disagreement.
+
+Sample from the offline engine: [`docs/samples/coursework_input.docx`](docs/samples/coursework_input.docx) →
+[`docs/samples/coursework_input_AutoFigure.docx`](docs/samples/coursework_input_AutoFigure.docx).
 
 ## How it works
 

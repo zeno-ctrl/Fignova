@@ -3,6 +3,7 @@ services:
   web:
     build: .
     env_file: .env
+    command: ["python", "-m", "autofigure", "serve", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["127.0.0.1:8000:8000"]
     volumes: ["afs-data:/data"]
     restart: unless-stopped

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import logging
 import time
 from typing import Optional
@@ -141,6 +142,34 @@ def generate_captions(original: bytes, figures: list[FigureOccurrence], settings
     return calls
 
 
+TYPE_WORDS = {
+    "chart": r"\b(chart|graph|plot|histogram)\b", "screenshot": r"\b(screenshot|screen ?shot|window|interface page)\b",
+    "photograph": r"\b(photo|photograph|picture of)\b", "network_diagram": r"\b(topology|network diagram)\b",
+    "cli": r"\b(output|command|terminal|console)\b",
+}
+COMPATIBLE = {"screenshot": {"cli", "screenshot", "table"}, "cli": {"cli", "screenshot"}, "chart": {"chart"},
+              "network_diagram": {"network_diagram"}, "photograph": {"photograph"}}
+
+
+def offline_type_clash(original: bytes, f: FigureOccurrence) -> Optional[tuple[str, str]]:
+    """Without a vision model we can still catch a caption that names the wrong kind of image
+    (e.g. "chart" under a network topology). Content mistakes inside photos need Claude/ChatGPT."""
+    from .ai.local_vision import analyse
+    desc = f.existing.description.lower()
+    said = [k for k, rx in TYPE_WORDS.items() if re.search(rx, desc)]
+    if not said:
+        return None
+    vis = analyse(media_for_ai(original, f.media_part))
+    if vis.confidence != "medium" or not vis.caption:
+        return None
+    if any(vis.kind in COMPATIBLE.get(k, {k}) for k in said):
+        return None
+    names = {"cli": "command-line output", "network_diagram": "network diagram", "chart": "chart",
+             "screenshot": "screenshot", "table": "table", "photograph": "photograph"}
+    return (f"The caption describes a {names.get(said[0], said[0])}, but the image looks like a {names.get(vis.kind, vis.kind)}",
+            vis.caption)
+
+
 def detect_mistakes(original: bytes, figures: list[FigureOccurrence], settings: CaptionSettings, language_hint: str,
                     captioner, budget: int) -> int:
     """Check the author's existing captions: wrong number, wrong label format, duplicate labels and — when a
@@ -179,6 +208,11 @@ def detect_mistakes(original: bytes, figures: list[FigureOccurrence], settings: 
                                  "message": "The caption text does not seem to match what the image shows",
                                  "found": found, "suggested": s.caption})
                 f.correction = s.caption
+        if not can_see and f.existing.description and not any(m["kind"] == "description" for m in problems):
+            clash = offline_type_clash(original, f)
+            if clash:
+                problems.append({"kind": "description", "message": clash[0], "found": found, "suggested": clash[1]})
+                f.correction = clash[1]
         previous = [m for m in f.mistakes if m.get("kind") == "description"]
         if not any(m["kind"] == "description" for m in problems) and previous and "dismissed_correction" not in f.warnings:
             problems += previous

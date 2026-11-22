@@ -174,7 +174,7 @@ class AutoFigureAI:
     def describe_engines(self) -> str:
         names = [{"anthropic": "Claude", "openai": "ChatGPT"}.get(m.name, m.name) for m in self.external]
         if not names:
-            return "AutoFigure AI · document context"
+            return "AutoFigure AI · AutoFigure Vision + document context"
         return "AutoFigure AI · " + " + ".join(names) + (" consensus" if len(names) > 1 else "") + " + document context"
 
     def suggest(self, image_jpeg: Optional[bytes], ctx: CaptionContext) -> Suggestion:
@@ -221,18 +221,33 @@ class AutoFigureAI:
 
     def _local_only(self, image_jpeg: Optional[bytes], ctx: CaptionContext, local: Optional[str], how: str,
                     failed: bool) -> Suggestion:
+        """Offline path: AutoFigure Vision (OCR + shape analysis) cross-checked with the author's own words."""
+        from .local_vision import analyse
         lang = ctx.language if ctx.language in PLACEHOLDER else "en"
-        cat, _ = classify_image(image_jpeg)
         extra = ["vision_models_unavailable"] if failed else []
+        vis = analyse(image_jpeg)
+        vcap = vis.caption if lang == "en" else None  # vision templates are English; Burmese keeps author/placeholder text
+        engine = "AutoFigure AI · AutoFigure Vision + document context"
+        alts: list[str] = []
         if local:
             text, flags = sanitize_caption(local)
-            s = Suggestion(ctx.figure_id, text, "medium", cat, lang, True, [f"from_author_text:{how}"] + flags + extra,
-                           "context")
-            s.engine = "AutoFigure AI · document context"
-            s.alternatives = []
+            conf, details = "medium", [f"from_author_text:{how}"] + flags + extra
+            if vcap and agreement(vcap, text) >= 0.2:
+                conf = "high"
+                details.append("vision_agrees_with_author")
+            elif vcap and vis.confidence == "medium":
+                alts.append(vcap)
+            cat = vis.kind
+        elif vcap:
+            text, flags = sanitize_caption(vcap)
+            conf, details, cat = vis.confidence, ["from_image_text_and_shapes"] + vis.evidence[:3] + flags + extra, vis.kind
+        else:
+            s = FallbackCaptioner().suggest(image_jpeg, ctx)
+            s.uncertain_details += extra + (["photo_content_needs_vision_model"] if vis.kind == "photograph" else [])
+            s.engine, s.alternatives = engine, []
             return s
-        s = FallbackCaptioner().suggest(image_jpeg, ctx)
-        s.uncertain_details += extra
-        s.engine = "AutoFigure AI · document context"
-        s.alternatives = []
+        # review unless the image itself backs the caption (vision evidence, alone or agreeing with the author)
+        needs = conf == "low" or (bool(local) and "vision_agrees_with_author" not in details)
+        s = Suggestion(ctx.figure_id, text, conf, cat, lang, needs, details, "context")
+        s.engine, s.alternatives = engine, alts
         return s

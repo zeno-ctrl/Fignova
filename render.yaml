@@ -1,0 +1,29 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# New → Blueprint → pick this repository. Persistent disks need a paid instance type.
+services:
+  - type: web
+    name: autofigure-studio
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: autofigure-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: AUTOFIGURE_DATA_DIR
+        value: /data
+      - key: AUTOFIGURE_SECURE_COOKIES
+        value: "true"
+      - key: AUTOFIGURE_OWNER_NAME
+        value: Zaw Naing Oo
+      - key: AUTOFIGURE_ENCRYPTION_KEY
+        sync: false   # paste a generated key in the Render dashboard (see .env.example)
+      - key: AUTOFIGURE_OWNER_EMAIL
+        sync: false
+      - key: AUTOFIGURE_PUBLIC_URL
+        sync: false   # e.g. https://autofigure-studio.onrender.com
+      - key: OPENAI_API_KEY
+        sync: false   # optional (needs credits)
+      - key: ANTHROPIC_API_KEY
+        sync: false   # optional

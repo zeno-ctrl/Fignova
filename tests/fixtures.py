@@ -341,3 +341,52 @@ def wrong_caption_doc() -> bytes:
 
 
 ALL["16_wrong_existing_captions.docx"] = wrong_caption_doc
+
+
+def cli_image(size=(900, 420)) -> io.BytesIO:
+    """Terminal window with router CLI output (rendered with a real font so OCR can read it)."""
+    from PIL import ImageFont
+    img = Image.new("RGB", size, (18, 18, 18))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("DejaVuSansMono.ttf", 20)
+    except OSError:
+        font = ImageFont.load_default()
+    lines = ["R1#show ip route", "Codes: C - connected, S - static, O - OSPF", "Gateway of last resort is not set",
+             "C    192.168.1.0/24 is directly connected, Gi0/0", "O    10.0.0.0/8 [110/2] via 192.168.1.2, Gi0/1",
+             "R1#"]
+    for i, t in enumerate(lines):
+        d.text((20, 20 + i * 34), t, fill=(220, 220, 220), font=font)
+    return _png(img)
+
+
+def login_image(size=(900, 560)) -> io.BytesIO:
+    from PIL import ImageFont
+    img = Image.new("RGB", size, (245, 247, 250))
+    d = ImageDraw.Draw(img)
+    try:
+        f1, f2 = ImageFont.truetype("DejaVuSans.ttf", 34), ImageFont.truetype("DejaVuSans.ttf", 22)
+    except OSError:
+        f1 = f2 = ImageFont.load_default()
+    d.rectangle([250, 80, 650, 480], fill=(255, 255, 255), outline=(200, 205, 215))
+    d.text((300, 110), "Router Admin Login", fill=(20, 30, 50), font=f1)
+    d.text((290, 200), "Username", fill=(60, 70, 90), font=f2)
+    d.rectangle([290, 235, 610, 275], outline=(170, 180, 195))
+    d.text((290, 300), "Password", fill=(60, 70, 90), font=f2)
+    d.rectangle([290, 335, 610, 375], outline=(170, 180, 195))
+    d.rectangle([290, 405, 610, 450], fill=(37, 99, 235))
+    d.text((415, 413), "Sign in", fill=(255, 255, 255), font=f2)
+    return _png(img)
+
+
+def mislabeled_doc() -> bytes:
+    """A network topology captioned as a chart, and router CLI output captioned as a photo."""
+    doc = Document()
+    doc.add_paragraph("Cover")
+    _page_break(doc)
+    doc.add_heading("LO1 Network build", level=1)
+    _pic(doc, network_image())
+    doc.add_paragraph("Figure 1.1 Bar chart of monthly sales", style="Caption")
+    _pic(doc, cli_image())
+    doc.add_paragraph("Figure 1.2 Photo of the server room", style="Caption")
+    return _save(doc)
