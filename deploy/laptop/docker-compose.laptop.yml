@@ -1,0 +1,13 @@
+# AutoFigure Studio on a home laptop: one container (web + worker), data kept in ./data next to this file.
+# Only reachable from this computer (127.0.0.1); the Cloudflare Tunnel publishes it to the internet over HTTPS.
+services:
+  autofigure:
+    build: ../..
+    env_file: .env
+    environment:
+      AUTOFIGURE_DATA_DIR: /data
+      AUTOFIGURE_CLIENT_IP_HEADER: cf-connecting-ip
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["./data:/data"]
+    restart: always
+    mem_limit: 6g

@@ -20,5 +20,8 @@ permanent disk, so the app cannot work there (you'd see `404 NOT_FOUND`, or this
 ## Railway / Fly.io
 Use the same `Dockerfile`. Attach a volume at `/data`, set the same environment variables, and expose port `$PORT`.
 
+## Home laptop
+See [`deploy/laptop/LAPTOP.md`](deploy/laptop/LAPTOP.md): Docker Desktop + free Cloudflare Tunnel, one setup script.
+
 ## Own server (VPS)
 `docker compose up -d --build` with a `.env` copied from `.env.example`, behind `deploy/nginx.conf` for HTTPS.
