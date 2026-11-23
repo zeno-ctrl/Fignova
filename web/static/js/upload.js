@@ -83,7 +83,7 @@
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!file) { showError("Choose a Word (.docx) file first."); input.focus(); return; }
-    if (!document.getElementById("consent").checked) { showError("Please confirm you have read how your document is stored and who can access it."); document.getElementById("consent").focus(); return; }
+    if (!document.getElementById("consent").checked) { showError("Please tick “I agree to the privacy terms” to continue."); document.getElementById("consent").focus(); return; }
     if (lite) { chunkedUpload(); return; }
     const fd = new FormData();
     fd.append("file", file, file.name);

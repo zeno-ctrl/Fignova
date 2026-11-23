@@ -593,3 +593,7 @@ table.data tbody tr { transition: background .12s; }
 .pill:has(svg)::before, .stepper .pill::before { display: none; }
 .proc-foot .icon, .xs .icon { display: inline-block; vertical-align: -2px; }
 @media (max-width: 700px) { .ws-head .stepper { display: none; } .ws-head { padding: 10px 0; } }
+
+.privacy-line { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-size: .82rem; color: var(--muted); }
+.privacy-line .icon { width: 15px; height: 15px; color: var(--primary); flex: none; }
+.privacy-line a { color: var(--muted); }

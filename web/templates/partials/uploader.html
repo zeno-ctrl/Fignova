@@ -34,16 +34,11 @@
   </details>
 
   <div class="uploader-head" style="margin-top:22px"><span class="step-dot">2</span><div><b>Confirm and start</b></div></div>
-  <div class="privacy-note" id="privacy-note">
+  <p class="privacy-line" id="privacy-note">
     <svg class="icon"><use href="#i-lock"/></svg>
-    <div>
-      Your Word file is stored securely (encrypted) for processing. <b>The website owner, {{ owner_name }}, can access uploaded files to administer the service.</b>
-      Files are retained for up to {{ retention_days }} days unless you delete them earlier.
-      {% if ai_providers %}Images and short nearby text are sent to {{ ai_providers | join(" and ") }} to suggest captions; they are not used to train models by default.{% else %}Captions are suggested by AutoFigure AI on this server; no document content is sent to an outside AI provider.{% endif %}
-      <a href="/privacy">Read our Privacy Policy</a>.
-    </div>
-  </div>
-  <label class="consent"><input type="checkbox" id="consent" required><span>I understand how my document is stored, who can access it and how long it is kept.</span></label>
+    <span>Encrypted, deleted after {{ retention_days }} days, and visible to the site admin for support.{% if ai_providers %} Images are sent to {{ ai_providers | join(" and ") }} for captions.{% endif %} <a href="/privacy">Privacy</a></span>
+  </p>
+  <label class="consent"><input type="checkbox" id="consent" required><span>I agree to the <a href="/privacy">privacy terms</a>.</span></label>
   <div class="row" style="margin-top:18px">
     <button class="btn btn-primary btn-lg btn-block-sm" type="submit" id="upload-submit"><svg class="icon"><use href="#i-sparkle"/></svg>Generate captions</button>
     <span class="small muted" id="upload-status" role="status" aria-live="polite"></span>
