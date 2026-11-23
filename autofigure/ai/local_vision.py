@@ -228,14 +228,32 @@ def _clean_title(t: str) -> str:
     return " ".join(t.split())[:60]
 
 
-def analyse(image_jpeg: Optional[bytes]) -> VisionResult:
+def lines_from_client(raw: list[dict]) -> list[TextLine]:
+    """Text lines read by the visitor's browser (Tesseract), with coordinates normalised to 0..1."""
+    out = []
+    for r in raw[:400]:
+        try:
+            text = " ".join(str(r.get("text", "")).split())[:300]
+            conf = float(r.get("conf", 0))
+            conf = conf / 100.0 if conf > 1 else conf
+            if not text or conf < 0.55:
+                continue
+            out.append(TextLine(text, float(r.get("x", 0)), float(r.get("y", 0)), float(r.get("h", 0)), conf))
+        except (TypeError, ValueError):
+            continue
+    out.sort(key=lambda t: (round(t.y, 2), t.x))
+    return out
+
+
+def analyse(image_jpeg: Optional[bytes], lines: Optional[list[TextLine]] = None) -> VisionResult:
     if not image_jpeg:
         return VisionResult(None, "other", "low", ["no_image"])
     try:
         im = _to_rgb(image_jpeg)
     except Exception:
         return VisionResult(None, "other", "low", ["unreadable_image"])
-    lines = _ocr(im)
+    if lines is None:
+        lines = _ocr(im)
     texts = [ln.text for ln in lines]
     alltext = " \n".join(texts)
     low = alltext.lower()
@@ -269,16 +287,32 @@ def analyse(image_jpeg: Optional[bytes]) -> VisionResult:
             cap = "Successful ping test results" if not re.search(r"timed out|unreachable", low) else "Ping test with failed replies"
         return VisionResult(cap, "cli", "medium" if cmd else "low", ev + ["cli_output"], texts)
 
-    # 2. network diagram: device labels
-    dev = Counter()
+    # 2. network diagram: device labels ("Router", "Switch 1", "PC-3" …). Several labels may share one OCR line.
+    labels: dict[str, dict] = {}
+    dev_re = re.compile(r"\b(" + "|".join(sorted(DEVICES, key=len, reverse=True)) + r")(?![a-z])[\s\-_]*(\d{1,3})?", re.I)
     for t in texts:
-        for word in re.findall(r"[A-Za-z]+", t):
-            k = word.lower()
-            if k in DEVICES and len(t.split()) <= 4:
-                dev[DEVICES[k]] += 1
-                break
-    if sum(dev.values()) >= 3 and len(dev) >= 1:
-        parts = [_plural(n, d) for d, n in dev.most_common(4)]
+        if len(t.split()) > 12:
+            continue  # sentences are not diagram labels
+        for m in dev_re.finditer(t):
+            name = DEVICES[m.group(1).lower()]
+            e = labels.setdefault(name, {"numbers": set(), "plain": 0})
+            if m.group(2):
+                e["numbers"].add(int(m.group(2)))
+            else:
+                e["plain"] += 1
+    total = sum(len(e["numbers"]) + e["plain"] for e in labels.values())
+    if total >= 3:
+        parts = []
+        for name, e in sorted(labels.items(), key=lambda kv: -(len(kv[1]["numbers"]) + kv[1]["plain"]))[:4]:
+            nums = e["numbers"]
+            if nums and not e["plain"]:
+                # state a count only when the labels prove it: 1..N (or 0..N-1) all present
+                exact = nums == set(range(1, max(nums) + 1)) or nums == set(range(0, max(nums) + 1))
+                parts.append(_plural(len(nums), name) if exact else _plural(2, name).split(" ", 1)[1])
+            elif nums or e["plain"] > 1:
+                parts.append(_plural(2, name).split(" ", 1)[1])  # plural without a number
+            else:
+                parts.append(_plural(1, name))
         tops = [x for x in _topics(alltext) if x not in ("interface", "IP addressing")][:1]
         cap = f"Network topology with {_join(parts)}"
         if "IP addressing" in _topics(alltext):

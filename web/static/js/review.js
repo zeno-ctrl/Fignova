@@ -56,6 +56,7 @@
       renderSidebar();
       renderDownload();
       fitGrid();
+      if (job.needs_browser_ocr && job.state === "review_ready") runBrowserOcr();
       if (job.failure && job.failure.regeneration_only && !S.warnedRegen) {
         S.warnedRegen = true;
         AF.toast("Your last changes could not be applied: " + job.failure.message + " The previous verified version is still available.", "error", 9000);
@@ -238,6 +239,91 @@
       } else { AF.toast("Kept your original caption.", "ok"); }
       await loadFigures(); renderSidebar();
     } catch (e) { AF.toast(e.message, "error"); }
+  }
+
+  // Serverless hosts have no OCR engine: read the text inside figures here, in the visitor's browser.
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = src; el.onload = resolve; el.onerror = () => reject(new Error("Could not load " + src));
+      document.head.appendChild(el);
+    });
+  }
+  // Tesseract reads small UI text and light-on-colour labels far better when the image is enlarged,
+  // grey-scaled and contrast-stretched first.
+  function prepareForOcr(bmp) {
+    const scale = Math.max(1, Math.min(2, 2400 / Math.max(bmp.width, bmp.height)));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    const img = ctx.getImageData(0, 0, c.width, c.height);
+    const d = img.data, hist = new Uint32Array(256);
+    for (let i = 0; i < d.length; i += 4) {
+      const g = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0;
+      d[i] = g; hist[g]++;
+    }
+    const n = d.length / 4;
+    let lo = 0, hi = 255, acc = 0;
+    while (lo < 255 && (acc += hist[lo]) < n * 0.01) lo++;
+    acc = 0;
+    while (hi > 0 && (acc += hist[hi]) < n * 0.01) hi--;
+    const span = Math.max(1, hi - lo);
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
+      d[i] = d[i + 1] = d[i + 2] = v;
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+
+  async function runBrowserOcr() {
+    if (S.ocrStarted) return;
+    S.ocrStarted = true;
+    const targets = S.figures.filter((f) => f.content_type === "picture" && f.thumb_url && f.status !== "excluded_first_page" &&
+      f.status !== "excluded_decorative" && f.caption_source !== "manual");
+    const banner = $("ocr-banner");
+    const show = (i, n) => { $("ocr-count").textContent = i + " / " + n; $("ocr-fill").style.width = Math.round((i / Math.max(1, n)) * 100) + "%"; };
+    const results = [];
+    let failed = false;
+    if (targets.length) {
+      banner.classList.remove("hidden"); fitGrid(); show(0, targets.length);
+      try {
+        await loadScript("/static/vendor/tesseract/tesseract.min.js");
+        const worker = await window.Tesseract.createWorker("eng", 1, {
+          workerPath: "/static/vendor/tesseract/worker.min.js", corePath: "/static/vendor/tesseract",
+          langPath: "/static/vendor/tesseract/lang", workerBlobURL: false, gzip: true });
+        for (let i = 0; i < targets.length; i++) {
+          const f = targets[i];
+          const res = await fetch(API + "/figures/" + f.figure_id + "/image", { credentials: "same-origin" });
+          if (!res.ok) { show(i + 1, targets.length); continue; }
+          const canvas = prepareForOcr(await createImageBitmap(await res.blob()));
+          const { data } = await worker.recognize(canvas, {}, { blocks: true });
+          const lines = [];
+          (data.blocks || []).forEach((b) => (b.paragraphs || []).forEach((p) => (p.lines || []).forEach((l) => {
+            const t = (l.text || "").trim();
+            if (t) lines.push({ text: t, x: l.bbox.x0 / canvas.width, y: l.bbox.y0 / canvas.height, h: (l.bbox.y1 - l.bbox.y0) / canvas.height, conf: l.confidence });
+          })));
+          results.push({ figure_id: f.figure_id, lines: lines.slice(0, 400) });
+          show(i + 1, targets.length);
+        }
+        await worker.terminate();
+      } catch (e) {
+        failed = true;
+        console.warn("Text recognition unavailable in this browser:", e && e.message);
+      }
+    }
+    try {
+      const d = await AF.api(API + "/ocr", { method: "POST", json: { results, failed } });
+      banner.classList.add("hidden"); fitGrid();
+      if (d.updated || d.mistakes) {
+        AF.toast((d.updated ? d.updated + " caption(s) improved using text found in your images. " : "") +
+          (d.mistakes ? d.mistakes + " mistake(s) found in existing captions." : ""), "ok", 6000);
+      }
+      if (d.regenerating) { S.job.state = "regenerating"; renderDownload(); kick(); setTimeout(poll, 800); }
+      else { await loadFigures(); renderSidebar(); }
+    } catch (e) { banner.classList.add("hidden"); fitGrid(); }
   }
 
   function figTitle(f) {

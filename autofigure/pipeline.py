@@ -151,7 +151,7 @@ COMPATIBLE = {"screenshot": {"cli", "screenshot", "table"}, "cli": {"cli", "scre
               "network_diagram": {"network_diagram"}, "photograph": {"photograph"}}
 
 
-def offline_type_clash(original: bytes, f: FigureOccurrence) -> Optional[tuple[str, str]]:
+def offline_type_clash(original: bytes, f: FigureOccurrence, lines=None) -> Optional[tuple[str, str]]:
     """Without a vision model we can still catch a caption that names the wrong kind of image
     (e.g. "chart" under a network topology). Content mistakes inside photos need Claude/ChatGPT."""
     from .ai.local_vision import analyse
@@ -159,7 +159,7 @@ def offline_type_clash(original: bytes, f: FigureOccurrence) -> Optional[tuple[s
     said = [k for k, rx in TYPE_WORDS.items() if re.search(rx, desc)]
     if not said:
         return None
-    vis = analyse(media_for_ai(original, f.media_part))
+    vis = analyse(media_for_ai(original, f.media_part), lines=lines)
     if vis.confidence != "medium" or not vis.caption:
         return None
     if any(vis.kind in COMPATIBLE.get(k, {k}) for k in said):
@@ -457,6 +457,70 @@ def recover_stalled() -> None:
         pending = db.q1("SELECT 1 FROM queue WHERE state IN ('ready','leased') AND payload LIKE ?", f'%"{j["id"]}"%')
         if not pending:
             _mark_failed(j["id"], "stalled", "analyze")
+
+
+GENERIC_CAPTIONS = {"Photograph", "Screenshot", "Diagram", "Chart", "Chart or diagram", "Illustration", "Image", "Table",
+                    "Logo", "Command-line output"}
+_RANK = {"verified": 4, "high": 3, "medium": 2, "low": 1, "": 0}
+
+
+def apply_browser_ocr(job_id: str, results: list[dict], failed: bool = False) -> dict:
+    """Serverless hosts cannot ship an OCR engine; the visitor's browser reads the text in each figure instead
+    (Tesseract, locally) and sends only the recognised lines. They go through the same caption rules as server OCR."""
+    from .ai.autofigure_ai import AutoFigureAI
+    from .ai.local_vision import lines_from_client
+    job = dict(db.q1("SELECT * FROM jobs WHERE id=?", job_id))
+    up = db.q1("SELECT * FROM uploads WHERE id=?", job["upload_id"])
+    meta = db.jload(job["analysis"], {}) or {}
+    if meta.get("browser_ocr"):
+        return {"updated": 0, "mistakes": 0, "regenerating": False}
+    settings = job_settings(job)
+    figures = load_figures(job_id)
+    by_id = {r["figure_id"]: lines_from_client(r.get("lines") or []) for r in results if r.get("figure_id")}
+    original = store().get(up["object_key"]) if by_id else b""
+    ai = AutoFigureAI(external=[])
+    updated, new_mistakes, touched = 0, 0, []
+    for f in figures:
+        lines = by_id.get(f.figure_id)
+        if lines is None or not lines:
+            continue
+        img = media_for_ai(original, f.media_part)
+        if f.existing and f.eligible and "dismissed_correction" not in f.warnings and \
+                not any(m.get("kind") == "description" for m in f.mistakes) and f.status != "replace":
+            clash = offline_type_clash(original, f, lines=lines)
+            if clash:
+                f.mistakes = f.mistakes + [{"kind": "description", "message": clash[0], "found": f.existing.text,
+                                            "suggested": clash[1]}]
+                f.correction = clash[1]
+                new_mistakes += 1
+                touched.append(f)
+            continue
+        if f.caption_source in ("manual", "corrected", "existing") or f.existing:
+            continue
+        if f.status not in ("insert", "replace", "excluded_page_uncertain", "excluded_unassigned"):
+            continue
+        s = ai.suggest_with_text(img, _context(f, settings, meta.get("language_hint", "en")), lines)
+        old_generic = f.caption_text in GENERIC_CAPTIONS or not f.caption_text
+        new_generic = s.caption in GENERIC_CAPTIONS
+        if s.caption and s.caption != f.caption_text and not new_generic and \
+                (_RANK.get(s.confidence_band, 0) > _RANK.get(f.confidence_band, 0) or old_generic):
+            f.caption_text, f.caption_source, f.confidence_band = s.caption, "context", s.confidence_band
+            f.needs_review, f.category, f.engine = s.needs_review, s.category, s.engine + " · text read in your browser"
+            f.alternatives = [a for a in s.alternatives if a != s.caption]
+            updated += 1
+            touched.append(f)
+    if touched:
+        save_figures(job_id, touched)
+    meta["browser_ocr"] = {"at": db.now(), "figures": len(by_id), "updated": updated, "failed": bool(failed)}
+    db.ex("UPDATE jobs SET analysis=? WHERE id=?", db.jdump(meta), job_id)
+    regenerating = False
+    if updated and any(f.eligible for f in touched):
+        with db.tx() as c:
+            c.execute("UPDATE jobs SET edits_version=edits_version+1, updated_at=? WHERE id=?", (db.now(), job_id))
+            ev = c.execute("SELECT edits_version FROM jobs WHERE id=?", (job_id,)).fetchone()["edits_version"]
+        queue.enqueue("regenerate", {"job_id": job_id, "edits_version": ev}, dedupe_key=f"regen:{job_id}:{ev}")
+        regenerating = True
+    return {"updated": updated, "mistakes": new_mistakes, "regenerating": regenerating}
 
 
 def run_job_tasks(job_id: str, max_seconds: float = 240) -> int:

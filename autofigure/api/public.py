@@ -252,6 +252,13 @@ def _steps(state: str) -> list[dict]:
     return out
 
 
+def needs_browser_ocr(job: dict, analysis: dict) -> bool:
+    if job.get("state") not in ("review_ready",) or analysis.get("browser_ocr"):
+        return False
+    from ..ai.local_vision import ocr_available
+    return get_config().lite and not ocr_available()
+
+
 def job_payload(job: dict) -> dict[str, Any]:
     summary = db.jload(job.get("summary"), {}) or {}
     analysis = db.jload(job.get("analysis"), {}) or {}
@@ -285,6 +292,7 @@ def job_payload(job: dict) -> dict[str, Any]:
         "events": [{"state": e["state"], "at": e["at"]} for e in events][-40:],
         "status_labels": STATUS_LABELS,
         "vision_check": bool(external_ai_providers()),
+        "needs_browser_ocr": needs_browser_ocr(job, analysis),
     }
 
 
@@ -605,6 +613,52 @@ def job_file(job_id: str, request: Request, kind: str = "output", revision: Opti
     if kind not in ("source", "output"):
         raise not_found()
     return chunked_or_full(file_bytes(job_id, kind, revision), chunk if chunk is not None else 0, DOCX_MEDIA)
+
+
+@router.get("/jobs/{job_id}/figures/{figure_id}/image")
+def figure_image(job_id: str, figure_id: str, request: Request) -> RawResponse:
+    """The figure at reading resolution, for text recognition in the visitor's own browser."""
+    job = guest_job(request, job_id)
+    row = db.q1("SELECT data FROM figures WHERE job_id=? AND id=?", job_id, figure_id)
+    if not row:
+        raise not_found()
+    d = db.jload(row["data"])
+    img = media_for_ai(store().get(job["source_key"]), d.get("media_part"), max_px=1800)
+    if not img:
+        raise not_found()
+    return RawResponse(img, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=600"})
+
+
+class OcrLine(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    text: str = Field(max_length=400)
+    x: float = 0
+    y: float = 0
+    h: float = 0
+    conf: float = 0
+
+
+class OcrFigure(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    figure_id: str = Field(max_length=64)
+    lines: list[OcrLine] = Field(default_factory=list, max_length=400)
+
+
+class OcrBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    results: list[OcrFigure] = Field(default_factory=list, max_length=1000)
+    failed: bool = False
+
+
+@router.post("/jobs/{job_id}/ocr")
+def submit_browser_ocr(job_id: str, body: OcrBody, request: Request) -> dict:
+    """Text recognised in the visitor's browser (serverless hosts have no OCR engine on the server)."""
+    check_csrf(request)
+    job = guest_job(request, job_id)
+    _require_reviewable(job)
+    limit("ocr", 30, 3600, request)
+    from ..pipeline import apply_browser_ocr
+    return apply_browser_ocr(job_id, [r.model_dump() for r in body.results], body.failed)
 
 
 @router.post("/jobs/{job_id}/process")

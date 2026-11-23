@@ -219,13 +219,18 @@ class AutoFigureAI:
         best.model_version = ",".join(r[1].model_version for r in results if r[1].model_version)
         return best
 
+    def suggest_with_text(self, image_jpeg: Optional[bytes], ctx: CaptionContext, lines) -> Suggestion:
+        """Offline suggestion using text lines read elsewhere (the visitor's browser)."""
+        local, how = context_caption(ctx)
+        return self._local_only(image_jpeg, ctx, local, how, False, lines)
+
     def _local_only(self, image_jpeg: Optional[bytes], ctx: CaptionContext, local: Optional[str], how: str,
-                    failed: bool) -> Suggestion:
+                    failed: bool, lines=None) -> Suggestion:
         """Offline path: AutoFigure Vision (OCR + shape analysis) cross-checked with the author's own words."""
         from .local_vision import analyse
         lang = ctx.language if ctx.language in PLACEHOLDER else "en"
         extra = ["vision_models_unavailable"] if failed else []
-        vis = analyse(image_jpeg)
+        vis = analyse(image_jpeg, lines=lines)
         vcap = vis.caption if lang == "en" else None  # vision templates are English; Burmese keeps author/placeholder text
         engine = "AutoFigure AI · AutoFigure Vision + document context"
         alts: list[str] = []

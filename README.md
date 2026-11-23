@@ -49,7 +49,7 @@ Cloudflare Tunnel, Render/Railway/Fly.io or any Docker host. In production run t
 python -m pytest -q
 ```
 
-69 tests: numbering invariants, 16 synthetic Word fixtures through the real renderer, OOXML preservation,
+75+ tests (run automatically on every push by GitHub Actions): numbering invariants, 16 synthetic Word fixtures through the real renderer, OOXML preservation,
 idempotency, validation of hostile files, AutoFigure AI, and end-to-end API/authorization tests including the
 spec's acceptance scenarios A–J.
 
@@ -76,7 +76,8 @@ AutoFigure AI is this site's own captioning engine — an orchestration layer, n
   turn that evidence into grounded captions, e.g. *Network topology with 7 switches and a router*,
   *Output of “show ip route” showing the routing table*, *Screenshot of interface status with VLAN assignments*,
   *Login page with username and password fields*. It never guesses what a photo shows; photos without context are
-  flagged for review.
+  flagged for review. On Vercel, where the OCR engine doesn't fit, the same text is read by Tesseract.js in the
+  visitor's own browser and sent back as plain text lines. Device counts are only stated when the labels prove them.
 * **Document context:** reads how the author introduced each figure (“The network topology used in the lab is shown
   next.” → *Network topology used in the lab*) and real author alt text. When vision and the author's sentence
   agree, confidence is high; when they disagree the other wording is offered as a second opinion.

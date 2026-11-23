@@ -4,8 +4,10 @@
 Works out of the box with `vercel.json` + `api/index.py`. On Vercel the app automatically:
 stores everything (database **and** encrypted files) in Neon Postgres, runs processing inside requests (no worker),
 detects cover-page images from Word's saved page layout / page breaks / a layout estimate, draws the preview in the
-browser, and moves files in 3 MB pieces. Not available on Vercel (size limits): LibreOffice rendering and the OCR part of
-AutoFigure Vision (use the laptop/Docker setup for those).
+browser, moves files in 3 MB pieces, and reads text inside figures **in the visitor's browser** (Tesseract.js, self-hosted
+under `web/static/vendor/tesseract`) because the server-side OCR engine exceeds Vercel's 250 MB limit. Not available on
+Vercel: LibreOffice rendering (the preview is drawn by the browser instead). Uploads pause automatically near the
+storage limit (`storage_limit_mb`, 450 MB default for Neon free) and after a site-wide daily cap; both are in Owner → Settings.
 
 1. Vercel project → **Storage** → connect your **Neon** database (this sets `DATABASE_URL`), or add `DATABASE_URL`
    yourself in **Settings → Environment Variables** with the Neon connection string.

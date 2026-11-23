@@ -21,7 +21,7 @@ from .common import ApiError, ensure_csrf_cookie, error_response, owner_session
 WEB = Path(__file__).resolve().parents[2] / "web"
 log = logging.getLogger("autofigure.http")
 
-CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+CSP = ("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; "
        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'")
 

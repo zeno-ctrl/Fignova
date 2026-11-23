@@ -123,3 +123,23 @@ def test_survives_database_dropping_idle_connections(app):
         admin.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()")
     for path in ("/static/css/app.css", "/how-it-works", "/api/session", "/owner/login"):
         assert c.get(path).status_code == 200, path
+
+
+def test_browser_ocr_improves_captions(app):
+    """Vercel has no OCR engine: text read by the visitor's browser upgrades generic captions and regenerates."""
+    c = make_client(app)
+    job = chunked_upload(c, fx.cover_lo_doc(), "x.docx")["job_id"]
+    c.post(f"/api/jobs/{job}/process")
+    assert c.get(f"/api/jobs/{job}").json()["needs_browser_ocr"] is True
+    figs = c.get(f"/api/jobs/{job}/figures").json()["figures"]
+    shot = figs[3]  # the interface-status screenshot (LO2, first figure)
+    assert c.get(f"/api/jobs/{job}/figures/{shot['figure_id']}/image").content[:2] == b"\xff\xd8"
+    lines = [{"text": f"Interface Gi0/{i} status up vlan {10 + i}", "x": .3, "y": .1 + i * .12, "h": .04, "conf": 88}
+             for i in range(6)]
+    r = c.post(f"/api/jobs/{job}/ocr", json={"results": [{"figure_id": shot["figure_id"], "lines": lines}]}).json()
+    assert r["updated"] == 1 and r["regenerating"] is True
+    c.post(f"/api/jobs/{job}/process")
+    assert c.get(f"/api/jobs/{job}").json()["needs_browser_ocr"] is False  # only once per document
+    assert "Figure 2.1 Screenshot of interface status with VLAN assignments" in captions(fetch_chunks(c, f"/api/jobs/{job}/download"))
+    # a second submission is ignored
+    assert c.post(f"/api/jobs/{job}/ocr", json={"results": []}).json()["updated"] == 0
