@@ -16,6 +16,7 @@
     <div class="card card-pad">
       <div class="row between"><h2 class="h-card">My documents</h2><span class="xs muted">only in this browser</span></div>
       <div id="my-uploads" style="margin-top:12px"><div class="skel" style="height:56px"></div></div>
+      <button class="btn btn-ghost btn-sm hidden" type="button" id="transfer-btn" style="margin-top:10px"><svg class="icon"><use href="#i-arrow"/></svg>Open on another device</button>
     </div>
     <div class="card card-pad tips">
       <h2 class="h-card">Good to know</h2>
@@ -28,5 +29,14 @@
     </div>
   </aside>
 </section>
+<dialog id="transfer-dialog" aria-labelledby="transfer-title">
+  <div class="dlg" style="text-align:center">
+    <h2 id="transfer-title" style="font-size:1.3rem">Open on another device</h2>
+    <p class="muted small">Scan with your phone, or copy the link. It works <b>once</b> and expires in <b>15 minutes</b>. Anyone with it can see your documents — don't share it.</p>
+    <div class="qr" id="transfer-qr"></div>
+    <div class="row" style="flex-wrap:nowrap"><input type="text" id="transfer-url" readonly aria-label="Private link"><button class="btn btn-sm" type="button" id="transfer-copy">Copy</button></div>
+    <div class="dlg-actions"><button class="btn" type="button" id="transfer-close">Done</button></div>
+  </div>
+</dialog>
 {% endblock %}
 {% block scripts %}<script src="/static/js/upload.js?v={{ version }}" defer></script>{% endblock %}

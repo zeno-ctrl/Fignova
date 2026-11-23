@@ -147,11 +147,31 @@
     }
   }
 
+  // move documents to another device
+  const tb = document.getElementById("transfer-btn");
+  if (tb) {
+    const dlg = document.getElementById("transfer-dialog");
+    tb.addEventListener("click", async () => {
+      try {
+        const d = await AF.api("/api/session/transfer", { method: "POST" });
+        document.getElementById("transfer-qr").innerHTML = d.qr_svg;
+        document.getElementById("transfer-url").value = d.url;
+        dlg.showModal();
+      } catch (e) { AF.toast(e.message, "error"); }
+    });
+    document.getElementById("transfer-copy").addEventListener("click", () => {
+      const u = document.getElementById("transfer-url");
+      (navigator.clipboard ? navigator.clipboard.writeText(u.value) : Promise.reject()).then(() => AF.toast("Link copied.", "ok")).catch(() => { u.select(); });
+    });
+    document.getElementById("transfer-close").addEventListener("click", () => dlg.close());
+  }
+
   // workspace list
   const list = document.getElementById("my-uploads");
   if (list) {
     const LABEL = { review_ready: ["Ready for review", "pill-success"], failed: ["Failed", "pill-error"] };
     const load = () => AF.api("/api/uploads").then((d) => {
+      document.getElementById("transfer-btn")?.classList.toggle("hidden", !d.uploads.length);
       if (!d.uploads.length) { list.innerHTML = '<div class="empty" style="padding:22px 10px">' + AF.icon("i-file") + '<p style="margin:0">No documents yet.<br><span class="xs">Your uploads appear here so you can return to them.</span></p></div>'; return; }
       list.innerHTML = '<ul class="fig-list">' + d.uploads.map((u) => {
         const [lab, cls] = LABEL[u.state] || ["Processing", "pill-accent"];

@@ -439,8 +439,11 @@ def retention_sweep() -> int:
     for r in rows:
         n = delete_upload_content(r["id"], "system", "expired")
         audit("system", "retention_expired", r["id"], {"objects_removed": n})
-    db.ex("DELETE FROM guest_sessions WHERE expires_at < ? AND id NOT IN (SELECT guest_session_id FROM uploads "
-          "WHERE deletion_state='active')", db.now())
+    stale = "SELECT id FROM guest_sessions WHERE expires_at < ? AND id NOT IN (SELECT guest_session_id FROM uploads)"
+    db.ex(f"DELETE FROM guest_tokens WHERE guest_session_id IN ({stale})", db.now())
+    db.ex(f"DELETE FROM session_transfers WHERE guest_session_id IN ({stale})", db.now())
+    db.ex("DELETE FROM session_transfers WHERE expires_at < ?", db.now() - 86400)
+    db.ex(f"DELETE FROM guest_sessions WHERE id IN ({stale})", db.now())
     db.ex("DELETE FROM owner_sessions WHERE expires_at < ?", db.now() - 86400 * 7)
     db.ex("DELETE FROM upload_chunks WHERE created_at < ?", db.now() - 86400)
     return len(rows)

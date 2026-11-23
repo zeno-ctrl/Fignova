@@ -67,7 +67,9 @@
         card("Retained uploads", m.retained_uploads, m.expiring_within_3_days + " expire within 3 days") +
         card("New uploads", m.new_uploads, "last " + m.days + " days") +
         card("Completed / failed", m.completed_jobs + " / " + m.failed_jobs, m.preview_failures + " preview render failures") +
-        card("Storage used", AF.bytes(m.storage_bytes), m.captioned_figures + " captions written · avg " + (m.avg_processing_seconds != null ? m.avg_processing_seconds + " s" : "–"));
+        card("Storage used", AF.bytes(m.storage_bytes), Math.round((m.storage_bytes / 1048576 / m.storage_limit_mb) * 100) + "% of " + m.storage_limit_mb + " MB · " + m.uploads_today + "/" + m.max_uploads_per_day + " uploads today") +
+        '<div class="card metric" style="grid-column:1/-1;padding:14px 20px"><div class="row between"><span class="mlabel">Storage capacity</span><span class="xs muted">New uploads pause automatically at 95%</span></div>' +
+        '<div class="progress" style="margin-top:8px;height:10px"><i style="width:' + Math.min(100, (m.storage_bytes / 1048576 / m.storage_limit_mb) * 100).toFixed(1) + '%;' + ((m.storage_bytes / 1048576 / m.storage_limit_mb) > 0.8 ? "background:var(--warning)" : "") + '"></i></div></div>';
       // single-series bar chart (no legend needed), hover tooltip, table fallback
       const max = Math.max(1, ...m.uploads_per_day);
       const start = Date.now() / 1000 - m.days * 86400;
@@ -238,7 +240,7 @@
 
   // ------------------------------------------------------------ settings
   if (section === "settings") {
-    const FIELDS = [["max_upload_mb", "Maximum upload size (MB)", 1, 200], ["retention_days", "Retention period (days)", 1, 365], ["max_figures", "Maximum images per document", 1, 2000], ["max_pages", "Maximum pages per document", 1, 2000], ["max_ai_suggestions_per_job", "AI model calls per document", 0, 1000]];
+    const FIELDS = [["max_upload_mb", "Maximum upload size (MB)", 1, 200], ["retention_days", "Retention period (days)", 1, 365], ["max_figures", "Maximum images per document", 1, 2000], ["max_pages", "Maximum pages per document", 1, 2000], ["max_ai_suggestions_per_job", "AI model calls per document", 0, 1000], ["max_uploads_per_day", "Uploads per day (whole site)", 1, 100000], ["storage_limit_mb", "Storage limit (MB) — Neon free tier ≈ 450", 50, 10000000]];
     const load = () => guard(AF.api("/api/owner/settings").then((d) => {
       const s = d.settings;
       $("svc-fields").innerHTML = '<div class="form-grid">' + FIELDS.map(([k, l, mn, mx]) => '<div><label class="lbl" for="f-' + k + '">' + l + '</label><input type="number" id="f-' + k + '" name="' + k + '" min="' + mn + '" max="' + mx + '" value="' + s[k] + '"></div>').join("") +

@@ -89,7 +89,10 @@ def check_csrf(request: Request) -> None:
 def guest_session(request: Request, response: Optional[Response] = None, create: bool = False) -> Optional[str]:
     tok = request.cookies.get(GUEST_COOKIE)
     if tok:
-        row = db.q1("SELECT id, expires_at FROM guest_sessions WHERE token_hash=?", token_hash(tok))
+        th = token_hash(tok)
+        row = db.q1("SELECT id, expires_at FROM guest_sessions WHERE token_hash=?", th) or \
+            db.q1("SELECT g.id, g.expires_at FROM guest_tokens t JOIN guest_sessions g ON g.id=t.guest_session_id "
+                  "WHERE t.token_hash=?", th)
         if row and row["expires_at"] > db.now():
             db.ex("UPDATE guest_sessions SET last_seen_at=? WHERE id=?", db.now(), row["id"])
             return row["id"]

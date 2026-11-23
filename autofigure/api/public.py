@@ -39,6 +39,20 @@ def chunked_or_full(data: bytes, chunk: Optional[int], media_type: str, filename
                                 "Access-Control-Expose-Headers": "X-Total-Chunks, X-Total-Size"})
 
 
+def storage_used_mb() -> float:
+    return store().usage_bytes() / (1024 * 1024)
+
+
+def check_capacity(svc: dict, incoming_mb: float = 0) -> None:
+    """Refuse new work politely before storage is full or the daily cap is reached (protects the database)."""
+    used = storage_used_mb()
+    if used + incoming_mb > svc["storage_limit_mb"] * 0.95:
+        raise ApiError(507, "storage_full", "The service is at capacity right now. Please try again later.")
+    today = db.q1("SELECT COUNT(*) n FROM uploads WHERE created_at > ?", db.now() - 86400)["n"]
+    if today >= svc["max_uploads_per_day"]:
+        raise ApiError(429, "daily_limit", "Today's upload limit for the service has been reached. Please try again tomorrow.")
+
+
 @router.post("/uploads/chunk")
 async def upload_chunk(request: Request, response: Response) -> dict:
     """Receive one ≤3 MB piece of a Word file (serverless request-size limit)."""
@@ -49,6 +63,8 @@ async def upload_chunk(request: Request, response: Response) -> dict:
     idx = request.headers.get("x-chunk-index", "")
     if not gid or not (16 <= len(token) <= 64) or not token.replace("-", "").isalnum() or not idx.isdigit() or int(idx) > 100:
         raise ApiError(400, "bad_chunk", "Invalid upload piece.")
+    if idx == "0":
+        check_capacity(db.service_settings())
     data = await request.body()
     if len(data) > CHUNK_BYTES or not data:
         raise ApiError(413, "chunk_too_large", "Upload piece too large.")
@@ -115,6 +131,7 @@ async def create_upload(request: Request, response: Response, file: Optional[Upl
     if svc["maintenance_mode"]:
         raise ApiError(503, "maintenance", svc["maintenance_message"] or "Uploads are paused for maintenance.")
     limit("upload", 20, 3600, request)
+    check_capacity(svc)
     if consent != "yes":
         raise ApiError(400, "consent_required", "Please confirm you have read how your file is stored and who can access it.")
     try:
@@ -153,6 +170,53 @@ async def create_upload(request: Request, response: Response, file: Optional[Upl
     queue.enqueue("analyze", {"job_id": job_id}, dedupe_key=f"analyze:{job_id}")
     return {"upload_id": upload_id, "job_id": job_id, "status_url": f"/api/jobs/{job_id}",
             "review_url": f"/app/jobs/{job_id}", "warnings": v.warnings}
+
+
+@router.post("/session/transfer")
+def create_transfer(request: Request) -> dict:
+    """Single-use, 15-minute link that opens this browser's documents on another device."""
+    import io
+    import secrets as _s
+    import qrcode
+    import qrcode.image.svg
+    from ..security import token_hash as _th
+    check_csrf(request)
+    limit("transfer", 10, 3600, request)
+    gid = guest_session(request)
+    if not gid:
+        raise ApiError(400, "no_session", "Upload a document first.")
+    code = _s.token_urlsafe(24)
+    db.ex("INSERT INTO session_transfers(code_hash, guest_session_id, expires_at) VALUES (?,?,?)", _th("xfer:" + code), gid,
+          db.now() + 900)
+    url = f"{str(request.base_url).rstrip('/')}/resume#{code}"
+    buf = io.BytesIO()
+    qrcode.make(url, image_factory=qrcode.image.svg.SvgPathImage, box_size=8, border=2).save(buf)
+    return {"url": url, "qr_svg": buf.getvalue().decode(), "expires_in": 900}
+
+
+class ResumeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=20, max_length=80)
+
+
+@router.post("/session/resume")
+def resume_session(body: ResumeBody, request: Request, response: Response) -> dict:
+    import secrets as _s
+    from ..security import token_hash as _th
+    from .common import GUEST_COOKIE, GUEST_TTL, set_cookie
+    check_csrf(request)
+    limit("resume", 20, 3600, request)
+    ch = _th("xfer:" + body.code)
+    with db.tx() as c:
+        row = c.execute("SELECT guest_session_id, expires_at, used_at FROM session_transfers WHERE code_hash=?", (ch,)).fetchone()
+        if row is None or row["used_at"] is not None or row["expires_at"] < db.now():
+            raise ApiError(400, "link_invalid", "This link has expired or was already used. Create a new one on your other device.")
+        c.execute("UPDATE session_transfers SET used_at=? WHERE code_hash=?", (db.now(), ch))
+        tok = _s.token_urlsafe(32)
+        c.execute("INSERT INTO guest_tokens(token_hash, guest_session_id, created_at) VALUES (?,?,?)",
+                  (_th(tok), row["guest_session_id"], db.now()))
+    set_cookie(response, GUEST_COOKIE, tok, GUEST_TTL, httponly=True, samesite="lax")
+    return {"ok": True}
 
 
 @router.get("/uploads")

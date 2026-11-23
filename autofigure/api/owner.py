@@ -259,7 +259,9 @@ def metrics(request: Request, days: int = 30) -> dict:
     return {
         "days": days, "retained_uploads": retained, "new_uploads": new, "jobs_by_state": states,
         "completed_jobs": states.get("review_ready", 0), "failed_jobs": states.get("failed", 0),
-        "storage_bytes": store().usage_bytes(), "captioned_figures": figs,
+        "storage_bytes": store().usage_bytes(), "storage_limit_mb": db.service_settings()["storage_limit_mb"],
+        "uploads_today": one("SELECT COUNT(*) FROM uploads WHERE created_at > ?", db.now() - 86400),
+        "max_uploads_per_day": db.service_settings()["max_uploads_per_day"], "captioned_figures": figs,
         "avg_processing_seconds": round(avg, 1) if avg else None, "uploads_per_day": buckets,
         "stuck_jobs": [dict(r) for r in stuck], "preview_failures": render_fail, "expiring_within_3_days": soon,
         "queue": queue.depth(), "ai_provider": cfg.ai_provider, "ai_calls": one("SELECT COALESCE(SUM(ai_calls),0) FROM jobs WHERE created_at>=?", since),
@@ -580,6 +582,8 @@ class ServiceSettings(BaseModel):
     max_figures: int = Field(ge=1, le=2000)
     max_pages: int = Field(ge=1, le=2000)
     max_ai_suggestions_per_job: int = Field(ge=0, le=1000)
+    max_uploads_per_day: int = Field(default=300, ge=1, le=100000)
+    storage_limit_mb: int = Field(default=450, ge=50, le=10_000_000)
     maintenance_mode: bool = False
     maintenance_message: str = Field(default="", max_length=240)
 
@@ -605,6 +609,7 @@ def patch_settings(body: ServiceSettings, request: Request) -> dict:
     data = body.model_dump()
     data["caption_defaults"] = cur.get("caption_defaults", {})
     db.ex("INSERT INTO settings_versions(data, created_at, actor) VALUES (?,?,?)", db.jdump(data), db.now(), "owner")
+    db._svc_cache["data"] = None
     changed = {k: [cur.get(k), v] for k, v in data.items() if cur.get(k) != v}
     audit("owner", "settings_changed", None, {"changed": changed}, client_ip(request))
     return {"ok": True, "settings": db.service_settings()}

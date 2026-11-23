@@ -223,6 +223,21 @@ MIGRATIONS.append("""
     );
 """)
 
+# Migration 3 — extra device tokens for a guest session (single-use transfer links)
+MIGRATIONS.append("""
+    CREATE TABLE guest_tokens (
+        token_hash TEXT PRIMARY KEY,
+        guest_session_id TEXT NOT NULL REFERENCES guest_sessions(id),
+        created_at REAL NOT NULL
+    );
+    CREATE TABLE session_transfers (
+        code_hash TEXT PRIMARY KEY,
+        guest_session_id TEXT NOT NULL REFERENCES guest_sessions(id),
+        expires_at REAL NOT NULL,
+        used_at REAL
+    );
+""")
+
 _local = threading.local()
 
 
@@ -436,6 +451,8 @@ DEFAULT_SERVICE_SETTINGS = {
     "max_figures": 400,
     "max_pages": 400,
     "max_ai_suggestions_per_job": 60,
+    "max_uploads_per_day": 300,  # whole site, protects storage from abuse
+    "storage_limit_mb": None,  # None → environment default (450 MB when files live in the database, e.g. Neon free tier)
     "maintenance_mode": False,
     "maintenance_message": "",
     "caption_defaults": {},
@@ -463,4 +480,8 @@ def _service_settings_uncached() -> dict:
         data["max_upload_mb"] = cfg.max_upload_mb
     if not data.get("retention_days"):
         data["retention_days"] = cfg.retention_days
+    if not data.get("storage_limit_mb"):
+        import os
+        env = os.environ.get("AUTOFIGURE_STORAGE_LIMIT_MB")
+        data["storage_limit_mb"] = int(env) if env else (450 if cfg.storage_backend == "database" else 50000)
     return data

@@ -141,6 +141,10 @@ def create_app() -> FastAPI:
     for path, (tpl, title) in pages.items():
         app.add_api_route(path, page_route(tpl, title), methods=["GET"], response_class=HTMLResponse)
 
+    @app.get("/resume", response_class=HTMLResponse)
+    async def resume_page(request: Request):
+        return render(request, "resume.html", {"title": "Open your documents"})
+
     @app.get("/app/jobs/{job_id}", response_class=HTMLResponse)
     async def job_page(job_id: str, request: Request):
         return render(request, "review.html", {"title": "Review document", "job_id": job_id})

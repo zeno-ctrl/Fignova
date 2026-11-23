@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block header %}{% include "partials/app_header.html" %}{% endblock %}
+{% block main %}
+<section class="container" style="max-width:560px;padding:72px 0">
+  <div class="card card-lg card-pad" style="text-align:center" id="resume-box">
+    <div class="proc-icon" style="margin:0 auto 16px" aria-hidden="true"><svg class="icon"><use href="#i-file"/></svg></div>
+    <h1 class="app-title">Opening your documents…</h1>
+    <p class="muted" id="resume-msg">Linking this device to your AutoFigure documents.</p>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/resume.js?v={{ version }}" defer></script>{% endblock %}
