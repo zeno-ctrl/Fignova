@@ -78,6 +78,12 @@
     if (id === "review-ui") fitGrid();
     if (id === "gone") { $("doc-name").textContent = "Document not available"; $("doc-meta").textContent = ""; $("stepper").classList.add("hidden"); }
   }
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => fitGrid());
+    ["review-ui", "mistakes"].forEach((id) => $(id) && ro.observe($(id)));
+    document.querySelector(".ws-head") && ro.observe(document.querySelector(".ws-head"));
+    document.querySelector(".stats-wrap") && ro.observe(document.querySelector(".stats-wrap"));
+  }
   function fitGrid() {
     const g = $("review-grid");
     const top = g.getBoundingClientRect().top + window.scrollY;
@@ -97,6 +103,9 @@
       job.ready_revision ? (st === "review_ready" ? "active" : "") : "",
     ];
     if (steps[3] === "active") steps[2] = "done";
+    const reviewing = st === "review_ready" || st === "regenerating";
+    $("stepper").classList.toggle("hidden", reviewing);
+    $("ws-actions").classList.toggle("hidden", !reviewing);
     $("stepper").querySelectorAll("li").forEach((li, i) => {
       li.dataset.state = steps[i] || "";
       li.querySelector("i").innerHTML = steps[i] === "done" ? AF.icon("i-check", "icon") : String(i + 1);
@@ -156,15 +165,17 @@
     const review = S.figures.filter((f) => f.needs_review && f.eligible).length;
     const pending = ["excluded_page_uncertain", "excluded_unassigned", "excluded_unsupported"].reduce((a, k) => a + (c[k] || 0), 0);
     const mistakes = S.figures.filter((f) => (f.mistakes || []).length).length;
+    const captioned = inserted + (c.renumber || 0) + kept;
     const tiles = [
-      { n: S.figures.length, label: "Images found", icon: "i-layers", tone: "", filter: "all" },
-      { n: inserted + (c.renumber || 0) + kept, label: "Captioned", icon: "i-check", tone: "ok", filter: "all" },
-      { n: c.excluded_first_page || 0, label: "Cover page (protected)", icon: "i-shield", tone: "violet", filter: "excluded" },
-      { n: review + pending, label: "To review", icon: "i-alert", tone: review + pending ? "warn" : "", filter: "review" },
+      { n: S.figures.length, label: S.figures.length === 1 ? "image found" : "images found", icon: "i-layers", tone: "", filter: "all" },
+      { n: captioned, label: "captioned", icon: "i-check", tone: "ok", filter: "all" },
+      { n: c.excluded_first_page || 0, label: "on cover page (skipped)", icon: "i-shield", tone: "violet", filter: "excluded" },
+      { n: review + pending, label: "to check", icon: "i-alert", tone: review + pending ? "warn" : "", filter: "review" },
     ];
-    if (mistakes) tiles.push({ n: mistakes, label: "Mistakes found", icon: "i-refresh", tone: "err", filter: "mistakes" });
+    if (mistakes) tiles.push({ n: mistakes, label: mistakes === 1 ? "mistake" : "mistakes", icon: "i-refresh", tone: "err", filter: "mistakes" });
+    renderNextStep({ captioned, review: review + pending, mistakes });
     const mode = { lo: "Numbered by LO", heading1: "Numbered by Heading 1", document: "Numbered 1, 2, 3" }[S.job.summary.mode] || "";
-    $("report").innerHTML = tiles.map((t) => '<button type="button" class="stat ' + t.tone + '" data-stat="' + t.filter + '">' +
+    $("report").innerHTML = tiles.filter((t, i) => i === 0 || t.n).map((t) => '<button type="button" class="stat ' + t.tone + '" data-stat="' + t.filter + '">' +
       '<span class="stat-ic">' + AF.icon(t.icon) + '</span><span><b class="tnum">' + t.n + "</b><small>" + AF.esc(t.label) + "</small></span></button>").join("") +
       (mode ? '<span class="stat-mode">' + AF.icon("i-hash") + AF.esc(mode) + "</span>" : "");
     // outline
@@ -205,19 +216,55 @@
     if (S.tab === "edit") renderEditor();
   }
 
+  // One plain-language sentence that always says what to do next.
+  function renderNextStep(n) {
+    if (n) S.ns = n; else n = S.ns;
+    if (!n || !S.job) return;
+    const box = $("next-step");
+    const busy = S.job.state === "regenerating";
+    let tone = "ok", icon = "i-check", title, body, action = "";
+    if (busy) {
+      tone = "info"; icon = "i-refresh";
+      title = "Updating your file…";
+      body = "We are rebuilding the Word file and preview with your changes. This takes a few seconds.";
+    } else if (n.mistakes) {
+      tone = "err"; icon = "i-alert";
+      title = n.mistakes === 1 ? "1 caption in your file has a mistake" : n.mistakes + " captions in your file have mistakes";
+      body = "Check each suggested fix below, then press <b>Correct all</b> — or correct them one by one.";
+      action = '<button class="btn btn-primary btn-sm" type="button" id="correct-all-top">' + AF.icon("i-sparkle") + "Correct all</button>";
+    } else if (n.review) {
+      tone = "warn"; icon = "i-alert";
+      title = n.review === 1 ? "1 figure needs a quick check" : n.review + " figures need a quick check";
+      body = "We were not fully sure about these. Open each one, confirm or edit the caption, then download.";
+      action = '<button class="btn btn-sm" type="button" data-stat="review">Show them</button>';
+    } else if (S.job.has_unrendered_changes) {
+      tone = "warn"; icon = "i-refresh";
+      title = "You have changes that are not in the file yet";
+      body = "Press <b>Apply changes</b> to rebuild the Word file with them.";
+      action = '<button class="btn btn-primary btn-sm" type="button" data-apply>' + AF.icon("i-refresh") + "Apply changes</button>";
+    } else if (!S.figures.length) {
+      tone = "info"; icon = "i-file";
+      title = "No pictures were found in this document";
+      body = "There is nothing to caption. Upload a different Word file if this is not what you expected.";
+    } else {
+      title = "All done — your figures are captioned";
+      body = n.captioned + (n.captioned === 1 ? " caption is" : " captions are") + " in place and verified. Check the preview, then download your Word file.";
+      action = '<button class="btn btn-primary btn-sm" type="button" data-download>' + AF.icon("i-download") + "Download</button>";
+    }
+    box.className = "next-step " + tone;
+    box.innerHTML = '<span class="ns-ic">' + AF.icon(icon) + '</span><div class="grow"><b>' + AF.esc(title) + "</b><div class=\"small\">" + body + "</div></div>" + action +
+      (n.mistakes && !busy && S.mistakeHtml ? '<div class="ns-fixes">' + S.mistakeHtml + "</div>" : "");
+  }
+
   function renderMistakes() {
     const box = $("mistakes");
     const prefix = S.job.settings.prefix || "Figure";
     const sep = S.job.settings.separator || " ";
     const list = S.figures.filter((f) => (f.mistakes || []).length);
-    if (!list.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
-    box.classList.remove("hidden");
+    if (!list.length) { box.classList.add("hidden"); box.innerHTML = ""; S.mistakeHtml = ""; return; }
     const auto = (f) => f.status === "renumber" && !f.mistakes.some((m) => m.kind === "description");
-    box.innerHTML = '<details class="mistakes-card" open><summary>' + AF.icon("i-alert") +
-      '<b class="grow">Mistakes found in your file (' + list.length + ")</b>" +
-      '<span class="small muted">Existing captions that have the wrong number, label or description. Check the preview, then correct them.</span>' +
-      '<button class="btn btn-primary btn-sm" type="button" id="correct-all">' + AF.icon("i-sparkle") + "Correct all</button></summary>" +
-      '<ul class="mistake-list">' + list.map((f) => {
+    box.classList.add("hidden");
+    S.mistakeHtml = '<ul class="mistake-list">' + list.map((f) => {
         const desc = f.mistakes.find((m) => m.kind === "description");
         const fixedText = prefix + " " + (f.label || "?") + sep + (desc ? desc.suggested : (f.existing ? f.existing.description : f.caption_text));
         return '<li class="mistake">' + (f.thumb_url ? '<img alt="" src="' + f.thumb_url + '">' : '<span class="fthumb"></span>') +
@@ -227,7 +274,8 @@
           '<div class="row" style="gap:6px"><button class="btn btn-xs" type="button" data-show="' + f.figure_id + '">' + AF.icon("i-eye") + "Show</button>" +
           '<button class="btn btn-xs btn-primary" type="button" data-correct="' + f.figure_id + '">Correct</button>' +
           (desc ? '<button class="btn btn-xs btn-ghost" type="button" data-keep="' + f.figure_id + '">Keep mine</button>' : "") + "</div></li>";
-      }).join("") + "</ul></details>";
+      }).join("") + "</ul>";
+    renderNextStep();
   }
 
   async function correct(ids, dismiss) {
@@ -731,11 +779,14 @@
     const apply = $("apply-btn");
     const rs = $("rev-state");
     if (j.ready_revision) {
-      dl.href = API + "/download";
-      dl.removeAttribute("aria-disabled");
-      dl.setAttribute("download", j.download_name);
+      [dl, $("download-top")].forEach((b) => {
+        b.href = API + "/download";
+        b.removeAttribute("aria-disabled");
+        b.setAttribute("download", j.download_name);
+      });
     }
     const busy = j.state === "regenerating";
+    renderNextStep();
     apply.disabled = busy || !j.has_unrendered_changes;
     if (busy) {
       rs.innerHTML = '<span class="spin" style="width:14px;height:14px;border:2px solid var(--primary);border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span>Generating revision ' + (j.current_revision + 1) + " and rendering preview…";
@@ -764,13 +815,22 @@
   }
 
   // ------------------------------------------------------------------ events
+  document.addEventListener("toggle", (e) => {
+    if (e.target.id !== "mistakes-details") return;
+    S.mistakesOpen = e.target.open;
+    const h = e.target.querySelector("summary .xs"); if (h) h.textContent = e.target.open ? "Hide" : "Show";
+  }, true);
   document.addEventListener("click", (e) => {
     const t = e.target;
     const card = t.closest("[data-fig]");
     if (card) { selectFigure(card.dataset.fig, { fromPreview: card.classList.contains("hl") || card.classList.contains("hl-client") }); return; }
-    if (t.closest("#download-btn") && S.lite && S.job && S.job.ready_revision) {
+    if (t.closest("[data-download]")) { e.preventDefault(); $("download-top").click(); return; }
+    if (t.closest("[data-apply]")) { e.preventDefault(); $("apply-btn").click(); return; }
+    if (t.closest("#correct-all-top")) { e.preventDefault(); correct(null); return; }
+    const dlb = t.closest("#download-btn, #download-top");
+    if (dlb && S.lite && S.job && S.job.ready_revision) {
       e.preventDefault();
-      const b = $("download-btn");
+      const b = dlb;
       AF.busy(b, true, "Preparing…");
       AF.fetchChunked(API + "/download").then((blob) => AF.saveBlob(blob, S.job.download_name)).catch((er) => AF.toast(er.message, "error")).finally(() => AF.busy(b, false));
       return;
@@ -785,7 +845,7 @@
     const ch = t.closest("[data-chapter]"); if (ch) { const f = S.figures.find((x) => x.eligible && String(x.chapter_number) === ch.dataset.chapter); if (f) selectFigure(f.figure_id, { edit: false }); return; }
     const stt = t.closest("[data-stat]");
     if (stt) {
-      if (stt.dataset.stat === "mistakes") { $("mistakes").scrollIntoView({ behavior: "smooth" }); return; }
+      if (stt.dataset.stat === "mistakes") { $("next-step").scrollIntoView({ behavior: "smooth" }); return; }
       S.filter = stt.dataset.stat; setTab("figures");
       document.querySelectorAll("[data-filter]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === S.filter)));
       renderFigureList(); if (window.matchMedia("(max-width: 880px)").matches) setMobile("inspector");
@@ -812,7 +872,8 @@
     if (t.closest("#apply-btn")) { applyChanges(); return; }
     if (t.closest("#reset-settings")) { saveSettings($("settings-form"), true); return; }
     if (t.closest("#fullscreen")) { const v2 = document.querySelector(".viewer"); if (document.fullscreenElement) document.exitFullscreen(); else v2.requestFullscreen?.(); return; }
-    if (t.closest("#download-btn") && $("download-btn").getAttribute("aria-disabled") === "true") { e.preventDefault(); return; }
+    const dlx = t.closest("#download-btn, #download-top");
+    if (dlx && dlx.getAttribute("aria-disabled") === "true") { e.preventDefault(); return; }
     if (t.closest("[data-delete-upload]")) { confirmDelete(); }
   });
   document.addEventListener("change", (e) => {

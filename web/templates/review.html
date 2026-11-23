@@ -13,6 +13,10 @@
         </div>
       </div>
       <ol class="stepper" id="stepper" aria-label="Progress"><li><i>1</i>Upload</li><li><i>2</i>Analyze</li><li><i>3</i>Review</li><li><i>4</i>Download</li></ol>
+      <div class="ws-actions hidden" id="ws-actions">
+        <button class="btn btn-ghost btn-sm" type="button" data-delete-upload style="color:var(--error)"><svg class="icon"><use href="#i-trash"/></svg><span class="hide-sm">Delete my files</span></button>
+        <a class="btn btn-primary" id="download-top" href="#" aria-disabled="true"><svg class="icon"><use href="#i-download"/></svg>Download Word file</a>
+      </div>
     </div>
   </div>
 
@@ -39,7 +43,9 @@
 
   <!-- review state -->
   <section id="review-ui" class="hidden">
-    <div class="wide stats-wrap"><div class="stats" id="report" aria-live="polite"></div>
+    <div class="wide stats-wrap">
+      <div class="next-step" id="next-step" role="status" aria-live="polite"></div>
+      <div class="stats" id="report"></div>
       <div class="ocr-banner hidden" id="ocr-banner" role="status" aria-live="polite">
         <span class="spin" aria-hidden="true"></span>
         <div class="grow"><b id="ocr-title">Reading the text inside your images to improve captions…</b>
@@ -57,7 +63,7 @@
       <aside class="rail" data-mpane="rail" aria-label="Document outline">
         <h3>Sections</h3>
         <ul class="outline" id="outline"></ul>
-        <details class="checks" id="checks"><summary><span>Things to check</span><span class="count-badge" id="checks-count">0</span></summary>
+        <details class="checks" id="checks"><summary><span>Notes about this file</span><span class="count-badge" id="checks-count">0</span></summary>
           <div id="issues" class="small"></div></details>
         <h3>Pages</h3>
         <div class="thumbs" id="thumbs"></div>
@@ -80,7 +86,7 @@
           <label class="small" for="page-jump">Page</label>
           <input type="number" id="page-jump" min="1" value="1" aria-label="Go to page"><span class="small muted tnum" id="page-total">/ –</span>
           <span class="sep"></span>
-          <input type="search" id="search" placeholder="Search text" aria-label="Search preview text">
+          <input type="search" id="search" placeholder="Search…" aria-label="Search preview text">
           <span class="small muted" id="search-result" aria-live="polite"></span>
           <button class="icon-btn" type="button" id="fullscreen" aria-label="Full screen"><svg class="icon"><use href="#i-expand"/></svg></button>
         </div>
@@ -104,6 +110,7 @@
           <div class="row" style="margin-bottom:12px;gap:8px">
             <button class="btn btn-xs" type="button" id="accept-all">Accept all confident suggestions</button>
           </div>
+          <p class="xs muted" style="margin:0 0 10px">Click a figure to see it in the preview and edit its caption.</p>
           <ul class="fig-list" id="fig-list"></ul>
         </div>
         <div class="panel hidden" data-panel="edit" id="editor"></div>
@@ -114,7 +121,6 @@
             <button class="btn btn-sm grow" type="button" id="apply-btn" disabled><svg class="icon"><use href="#i-refresh"/></svg>Apply changes</button>
             <a class="btn btn-primary btn-sm grow" id="download-btn" href="#" aria-disabled="true"><svg class="icon"><use href="#i-download"/></svg>Download Word file</a>
           </div>
-          <button class="btn btn-ghost btn-xs" type="button" data-delete-upload style="justify-self:start;color:var(--error)"><svg class="icon"><use href="#i-trash"/></svg>Delete my files</button>
         </div>
       </aside>
     </div>
