@@ -45,7 +45,8 @@ def client_ip(request: Request) -> str:
     # Behind a trusted proxy/tunnel (e.g. Cloudflare Tunnel with the app bound to 127.0.0.1) the real visitor
     # address arrives in a header. Only honoured when the operator names that header explicitly.
     import os
-    header = os.environ.get("AUTOFIGURE_CLIENT_IP_HEADER", "").strip().lower()
+    # Vercel's edge always sets x-real-ip to the visitor's address (clients cannot spoof it there).
+    header = os.environ.get("AUTOFIGURE_CLIENT_IP_HEADER", "x-real-ip" if os.environ.get("VERCEL") else "").strip().lower()
     if header:
         v = request.headers.get(header, "").split(",")[0].strip()
         if v:
