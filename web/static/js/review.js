@@ -17,7 +17,7 @@
   S.zoom = store.get("zoom") || 1;
 
   const STATUS_PILL = {
-    insert: "pill-success", renumber: "pill-accent", replace: "pill-accent", preserve: "pill-success",
+    insert: "pill-success", renumber: "pill-violet", replace: "pill-violet", preserve: "pill-success",
     skip_existing: "", excluded_first_page: "pill-violet", excluded_page_uncertain: "pill-warning",
     excluded_decorative: "", excluded_unassigned: "pill-warning", excluded_unsupported: "pill-warning", excluded_manual: "",
   };
@@ -562,7 +562,7 @@
     const sep = S.job.settings.separator || " ";
     const chapters = S.job.summary.chapters || [];
     const engine = f.engine || (f.caption_source === "manual" ? "Edited by you" : f.caption_source === "existing" ? "Existing caption in your document" : "");
-    const conf = { high: ["High confidence", "pill-success"], medium: ["Medium confidence", "pill-accent"], low: ["Low confidence", "pill-warning"], verified: ["Verified by you", "pill-success"] }[f.confidence_band] || null;
+    const conf = { high: ["High confidence", "pill-success"], medium: ["Medium confidence", "pill-violet"], low: ["Low confidence", "pill-warning"], verified: ["Verified by you", "pill-success"] }[f.confidence_band] || null;
     box.innerHTML =
       (f.thumb_url ? '<img class="insp-thumb" alt="Thumbnail of ' + AF.esc(figTitle(f)) + '" src="' + f.thumb_url + '">' : "") +
       '<div class="row between" style="margin:14px 0 6px"><h3 style="margin:0" class="tnum">' + AF.esc(figTitle(f)) + '</h3><span class="pill ' + (STATUS_PILL[f.status] || "") + '">' + AF.esc(f.status_label) + "</span></div>" +

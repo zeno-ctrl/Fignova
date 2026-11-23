@@ -174,7 +174,7 @@
       document.getElementById("transfer-btn")?.classList.toggle("hidden", !d.uploads.length);
       if (!d.uploads.length) { list.innerHTML = '<div class="empty" style="padding:22px 10px">' + AF.icon("i-file") + '<p style="margin:0">No documents yet.<br><span class="xs">Your uploads appear here so you can return to them.</span></p></div>'; return; }
       list.innerHTML = '<ul class="fig-list">' + d.uploads.map((u) => {
-        const [lab, cls] = LABEL[u.state] || ["Processing", "pill-accent"];
+        const [lab, cls] = LABEL[u.state] || ["Processing", "pill-violet"];
         return '<li class="fig-card" style="grid-template-columns:36px 1fr auto;cursor:default"><div class="doc-badge" style="width:30px;height:36px">W</div>' +
           '<div style="min-width:0"><a href="/app/jobs/' + AF.esc(u.job_id) + '" style="font-weight:650;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + AF.esc(u.original_name) + '</a>' +
           '<span class="fmeta">' + AF.date(u.created_at) + ' · ' + AF.bytes(u.byte_size) + ' · deleted ' + AF.dateOnly(u.retention_expires_at) + '</span></div>' +

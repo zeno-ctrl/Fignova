@@ -5,7 +5,7 @@ cover page, numbers captions by Learning Outcome / Heading 1 (Figure 1.1, 1.2 â€
 descriptions with **AutoFigure AI**, finds mistakes in captions you already wrote, shows a true preview of the exact
 output, and gives you back an editable `.docx`.
 
-Created by **Zaw Naing Oo** â€” the only person who can enter the private owner console.
+A product of **Zeno Group**. Only the verified site owner can enter the private owner console.
 
 ![Landing page](docs/screenshots/home.png)
 

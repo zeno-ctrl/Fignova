@@ -280,6 +280,8 @@ def test_security_headers(client):
     r = client.get("/")
     assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
     assert r.headers["x-content-type-options"] == "nosniff"
-    assert "Created by Zaw Naing Oo" in r.text
-    assert "Created by Zaw Naing Oo" in client.get("/about").text
-    assert "Zaw Naing Oo" in client.get("/privacy").text
+    # company ownership shown publicly; the owner's personal name is not
+    assert "© " in r.text and "Zeno Group. All rights reserved." in r.text
+    assert "Zeno Group" in client.get("/about").text
+    for page in ("/", "/about", "/privacy", "/app", "/features"):
+        assert "Zaw Naing Oo" not in client.get(page).text, page

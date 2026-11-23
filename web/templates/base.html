@@ -6,8 +6,17 @@
 <title>{% if title and title != "AutoFigure Studio" %}{{ title }} · {% endif %}AutoFigure Studio</title>
 <meta name="description" content="Upload a Word document. AutoFigure Studio identifies images, writes meaningful captions, numbers them by section, and gives you a full preview before you download.">
 <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+<meta name="theme-color" content="#f6f3ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12110f" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AutoFigure Studio">
+<meta property="og:title" content="AutoFigure Studio — Every figure, perfectly in place">
+<meta property="og:description" content="Upload a Word document. Every image gets a meaningful caption, numbered by learning outcome, with a true preview before you download.">
+<meta property="og:image" content="{{ base_url }}/static/img/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..700;1,9..144,500..700&family=Inter:wght@400..800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap">
 <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
 <script src="/static/js/theme.js?v={{ version }}"></script>
 {% block head %}{% endblock %}
@@ -42,15 +51,21 @@
 </main>
 {% block footer %}
 <footer class="site-footer">
-  <div class="container footer-grid">
-    <div>
+  <div class="container footer2-top">
+    <div class="f-brand">
       {% include "partials/brand.html" %}
-      <p class="small" style="margin-top:12px;max-width:26em">Word-to-Word figure captioning, numbered by learning outcome, with a true preview before you download.</p>
-      <span class="creator-badge"><span class="avatar" aria-hidden="true">ZN</span>Created by {{ owner_name }}</span>
+      <p>Word-to-Word figure captioning, numbered by learning outcome, with a true preview before you download.</p>
+      <a class="btn btn-primary btn-sm" href="/app"><svg class="icon"><use href="#i-upload"/></svg>Open workspace</a>
     </div>
-    <div><h4>Product</h4><a href="/app">Workspace</a><a href="/features">Features</a><a href="/how-it-works">How it works</a></div>
-    <div><h4>Support</h4><a href="/help">Help &amp; troubleshooting</a>{% if support_contact %}<a href="{{ support_contact if '://' in support_contact else 'mailto:' ~ support_contact }}">Contact support</a>{% else %}<span class="small">Support contact: set by the operator</span>{% endif %}<a href="/about">About</a></div>
-    <div><h4>Trust</h4><a href="/privacy">Privacy</a><a href="/terms">Terms</a><span class="small">Version {{ version }}</span></div>
+    <nav class="f-cols" aria-label="Footer">
+      <div><h4>Product</h4><a href="/app">Workspace</a><a href="/features">Features</a><a href="/how-it-works">How it works</a></div>
+      <div><h4>Support</h4><a href="/help">Help &amp; troubleshooting</a>{% if support_contact %}<a href="{{ support_contact if '://' in support_contact else 'mailto:' ~ support_contact }}">Contact us</a>{% endif %}<a href="/about">About</a></div>
+      <div><h4>Legal</h4><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
+    </nav>
+  </div>
+  <div class="container footer2-bottom">
+    <span>© {{ year }} {{ company_name }}. All rights reserved.</span>
+    <span>AutoFigure Studio is a product of {{ company_name }} · v{{ version }}</span>
   </div>
 </footer>
 {% endblock %}

@@ -35,9 +35,10 @@ class Config:
     support_contact: str
     operator_name: str
     storage_region: str
+    company_name: str = "Zeno Group"  # legal owner shown in the footer copyright line
     lite: bool = False  # serverless host (Vercel): no LibreOffice, no background worker, no persistent disk
     storage_backend: str = "disk"  # disk | database
-    version: str = "1.2.0"
+    version: str = "2.0.0"
 
     @property
     def dev_mode(self) -> bool:
@@ -98,4 +99,5 @@ def get_config() -> Config:
         storage_region=os.environ.get("AUTOFIGURE_STORAGE_REGION", "the operator's server"),
         lite=lite,
         storage_backend=storage_backend,
+        company_name=(os.environ.get("AUTOFIGURE_COMPANY_NAME") or "Zeno Group").strip(),
     )

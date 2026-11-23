@@ -36,7 +36,7 @@ code{{background:#e3f7fa;padding:2px 6px;border-radius:6px}}.err{{background:#fd
 <b>Production</b>, then <b>Deployments → ⋯ → Redeploy</b>.</p>
 <table>{''.join(rows)}</table>
 <p>Startup error:</p><p class="err">{html.escape(err)}</p>
-<p>Created by Zaw Naing Oo.</p></body></html>""".encode()
+</body></html>""".encode()
         await send({"type": "http.response.start", "status": 503,
                     "headers": [(b"content-type", b"text/html; charset=utf-8"), (b"cache-control", b"no-store")]})
         await send({"type": "http.response.body", "body": body})

@@ -20,7 +20,7 @@ and where it is visible.
 | 18 | Verified download, safe filename, latest rendered revision | `api/public.py::download` | Test D | — |
 | 19 / 23 / 69 | Single owner, password + TOTP, server-side checks, step-up | `api/owner.py`, `api/common.py`, `__main__.py owner-invite` | `test_owner_sees_all_uploads_with_mfa_and_audit`, `test_anonymous_cannot_reach_owner` (Test G) | `owner-enroll.png` |
 | 20 / 21 / 34 / 71 | Owner library of all retained uploads, previews, downloads, metrics | `api/owner.py`, `web/templates/owner/*`, `owner.js` | Test I | `owner-dashboard.png`, `owner-uploads.png`, `owner-upload-preview.png` |
-| 22 / 68 | Owner access disclosed before upload; AI provider disclosure | `partials/uploader.html`, `privacy.html` | `test_security_headers` (creator credit) | `app-ready.png` |
+| 22 / 68 | Owner access disclosed before upload; AI provider disclosure | `partials/uploader.html`, `privacy.html` | `test_security_headers` (company copyright, no personal name on public pages) | `app-ready.png` |
 | 33 / 86 | Deletion and retention | `pipeline.delete_upload_content`, `retention_sweep` | `test_user_delete_removes_access` (Test J), `test_retention_expiry` | owner Retention page |
 | 74 / 85 | Guest isolation (BOLA) | `api/common.py::guest_job` | `test_other_guest_cannot_access_job` (Test H) | — |
 | 28 / 29 | CSRF, Origin, CSP, hostile XML/zip | `api/common.py`, `api/app.py`, `validation.py` | `test_consent_and_csrf_required`, `test_hostile_packages` | — |

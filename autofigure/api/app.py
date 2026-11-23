@@ -113,6 +113,8 @@ def create_app() -> FastAPI:
                    "maintenance_message": ""}
         ctx.update({
             "request": request, "owner_name": cfg.owner_display_name, "version": cfg.version,
+            "company_name": cfg.company_name, "year": time.strftime("%Y"),
+            "base_url": str(request.base_url).rstrip("/"),
             "retention_days": svc["retention_days"], "max_upload_mb": svc["max_upload_mb"],
             "ai_providers": public.external_ai_providers(), "support_contact": cfg.support_contact,
             "operator_name": cfg.operator_name, "storage_region": cfg.storage_region, "path": request.url.path,

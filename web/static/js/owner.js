@@ -3,8 +3,8 @@
   const $ = (id) => document.getElementById(id);
   const section = document.body.dataset.section;
   AF.api("/api/session").then((x) => { window.AF_LITE = !!x.lite; }).catch(() => {});
-  const STATE_PILL = { review_ready: ["Ready", "pill-success"], failed: ["Failed", "pill-error"], deleted: ["Deleted", ""], expired: ["Expired", ""], regenerating: ["Regenerating", "pill-accent"] };
-  const statePill = (s) => { const [l, c] = STATE_PILL[s] || ["Processing", "pill-accent"]; return '<span class="pill ' + c + '">' + l + "</span>"; };
+  const STATE_PILL = { review_ready: ["Ready", "pill-success"], failed: ["Failed", "pill-error"], deleted: ["Deleted", ""], expired: ["Expired", ""], regenerating: ["Regenerating", "pill-violet"] };
+  const statePill = (s) => { const [l, c] = STATE_PILL[s] || ["Processing", "pill-violet"]; return '<span class="pill ' + c + '">' + l + "</span>"; };
 
   // step-up wrapper: retries the action after a successful authenticator confirmation
   async function sensitive(fn) {

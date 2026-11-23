@@ -26,25 +26,27 @@ def cmd_serve(args) -> None:
 
     from .api.app import create_app
 
+    stop = threading.Event()
     if args.with_worker:
-        p = multiprocessing.Process(target=_run_worker, daemon=True)
-        p.start()
-    uvicorn.run(create_app(), host=args.host, port=args.port, proxy_headers=True, forwarded_allow_ips="127.0.0.1",
-                log_level="warning", access_log=False)
+        _supervise_worker(stop)
+    try:
+        uvicorn.run(create_app(), host=args.host, port=args.port, proxy_headers=True, forwarded_allow_ips="127.0.0.1",
+                    log_level="warning", access_log=False)
+    finally:
+        stop.set()  # server is shutting down: never respawn the worker now
+
+
+def _supervise_worker(stop: "threading.Event") -> None:
+    import atexit
+
+    from .workerproc import start
+    atexit.register(stop.set)
+    start(stop)
 
 
 def _run_worker() -> None:
-    _setup_logging()
-    from . import db
-    from .config import get_config
-    from .pipeline import worker_loop
-
-    db.migrate()
-    n = max(1, get_config().worker_concurrency)
-    threads = [threading.Thread(target=worker_loop, daemon=True) for _ in range(n - 1)]
-    for t in threads:
-        t.start()
-    worker_loop()
+    from .workerproc import run_worker
+    run_worker()
 
 
 def cmd_worker(args) -> None:
